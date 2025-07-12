@@ -118,7 +118,7 @@ export default function EditCompanyProfilePage() {
       if (response.ok) {
         setSaveStatus(prev => ({ ...prev, [field]: 'saved' }));
         setTimeout(() => {
-          setSaveStatus(prev => ({ ...prev, [field]: undefined }));
+          setSaveStatus(prev => { const newState = {...prev}; delete newState[field]; return newState; });
         }, 2000);
       } else {
         throw new Error('Save failed');
@@ -126,7 +126,7 @@ export default function EditCompanyProfilePage() {
     } catch (error) {
       setSaveStatus(prev => ({ ...prev, [field]: 'error' }));
       setTimeout(() => {
-        setSaveStatus(prev => ({ ...prev, [field]: undefined }));
+        setSaveStatus(prev => { const newState = {...prev}; delete newState[field]; return newState; });
       }, 3000);
     }
   };

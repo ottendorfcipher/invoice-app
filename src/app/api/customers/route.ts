@@ -9,13 +9,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search');
     
-    let query = db.select().from(customers);
+    let result;
     
     if (search) {
-      query = query.where(like(customers.name, `%${search}%`));
+      result = await db.select().from(customers)
+        .where(like(customers.name, `%${search}%`))
+        .orderBy(desc(customers.createdAt));
+    } else {
+      result = await db.select().from(customers)
+        .orderBy(desc(customers.createdAt));
     }
-    
-    const result = await query.orderBy(desc(customers.createdAt));
     
     return NextResponse.json(result);
   } catch (error) {

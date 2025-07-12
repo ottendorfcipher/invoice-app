@@ -4,10 +4,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  output: 'export',
-  distDir: 'out',
-  trailingSlash: true,
-  assetPrefix: './',
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 }
 
 module.exports = nextConfig

@@ -11,7 +11,7 @@
     "start": "next start",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "build:electron": "npm run build && next export",
+    "build:electron": "npm run build",
     "dist": "npm run build:electron && electron-builder",
     "dist:mac": "npm run build:electron && electron-builder --mac",
     "dist:win": "npm run build:electron && electron-builder --win",
@@ -54,6 +54,7 @@
     "drizzle-orm": "^0.36.3",
     "jose": "^6.0.11",
     "lucide-react": "^0.511.0",
+    "nanoid": "^5.1.5",
     "next": "15.3.3",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
@@ -87,16 +88,20 @@
       "output": "dist"
     },
     "files": [
-      "out/**/*",
+      ".next/**/*",
       "electron/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "package.json"
     ],
     "mac": {
       "category": "public.app-category.business",
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "electron/assets/icon.icns"
@@ -105,7 +110,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/assets/icon.ico"
@@ -114,11 +121,15 @@
       "target": [
         {
           "target": "tar.gz",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/assets/icon.png"

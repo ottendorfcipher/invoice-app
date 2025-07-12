@@ -273,17 +273,20 @@ function InvoicePDF({ invoice }: { invoice: any }) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const result = await db.select().from(invoices).where(eq(invoices.id, params.id));
+    const result = await db.select().from(invoices).where(eq(invoices.id, id));
     
     if (result.length === 0) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
     
     const invoice = result[0];
-    const pdfBuffer = await pdf(React.createElement(InvoicePDF, { invoice })).toBuffer();
+    const pdfDoc = pdf(InvoicePDF({ invoice }));
+    const pdfBlob = await pdfDoc.toBlob();
+    const pdfBuffer = Buffer.from(await pdfBlob.arrayBuffer());
     
     return new NextResponse(pdfBuffer, {
       headers: {

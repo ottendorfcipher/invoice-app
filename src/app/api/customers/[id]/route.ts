@@ -5,10 +5,11 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const result = await db.select().from(customers).where(eq(customers.id, params.id));
+    const result = await db.select().from(customers).where(eq(customers.id, id));
     
     if (result.length === 0) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
@@ -23,8 +24,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const body = await request.json();
     
@@ -36,7 +38,7 @@ export async function PUT(
     const result = await db
       .update(customers)
       .set(updateData)
-      .where(eq(customers.id, params.id))
+      .where(eq(customers.id, id))
       .returning();
     
     if (result.length === 0) {
@@ -52,12 +54,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const result = await db
       .delete(customers)
-      .where(eq(customers.id, params.id))
+      .where(eq(customers.id, id))
       .returning();
     
     if (result.length === 0) {

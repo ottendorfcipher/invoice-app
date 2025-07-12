@@ -9,13 +9,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     
-    let query = db.select().from(invoices);
+    let result;
     
     if (status) {
-      query = query.where(eq(invoices.status, status as any));
+      result = await db.select().from(invoices)
+        .where(eq(invoices.status, status as any))
+        .orderBy(desc(invoices.createdAt));
+    } else {
+      result = await db.select().from(invoices)
+        .orderBy(desc(invoices.createdAt));
     }
-    
-    const result = await query.orderBy(desc(invoices.createdAt));
     
     return NextResponse.json(result);
   } catch (error) {

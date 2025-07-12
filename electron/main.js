@@ -1,8 +1,28 @@
 const { app, BrowserWindow, shell, dialog } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
+let nextServer;
+
+function startNextServer() {
+  if (!isDev) {
+    const nextServerPath = path.join(__dirname, '../node_modules/.bin/next');
+    nextServer = spawn('node', [nextServerPath, 'start'], {
+      cwd: path.join(__dirname, '..'),
+      env: { ...process.env, PORT: '3000' }
+    });
+    
+    nextServer.stdout.on('data', (data) => {
+      console.log(`Next.js: ${data}`);
+    });
+    
+    nextServer.stderr.on('data', (data) => {
+      console.error(`Next.js Error: ${data}`);
+    });
+  }
+}
 
 function createWindow() {
   // Create the browser window
@@ -17,17 +37,18 @@ function createWindow() {
       enableRemoteModule: false,
       webSecurity: true,
     },
-    icon: path.join(__dirname, 'assets/icon.png'), // Add your app icon
+    icon: path.join(__dirname, 'assets/icon.png'),
     titleBarStyle: 'default',
-    show: false, // Don't show until ready
+    show: false,
   });
 
-  // Load the app
-  const startUrl = isDev 
-    ? 'http://localhost:3000' 
-    : `file://${path.join(__dirname, '../out/index.html')}`;
+  const startUrl = 'http://localhost:3000';
   
-  mainWindow.loadURL(startUrl);
+  // Wait a bit for the server to start in production
+  const delay = isDev ? 0 : 3000;
+  setTimeout(() => {
+    mainWindow.loadURL(startUrl);
+  }, delay);
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
@@ -53,6 +74,7 @@ function createWindow() {
 
 // App event handlers
 app.whenReady().then(() => {
+  startNextServer();
   createWindow();
 
   app.on('activate', () => {
@@ -65,6 +87,12 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  if (nextServer && !nextServer.killed) {
+    nextServer.kill();
   }
 });
 
