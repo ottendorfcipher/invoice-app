@@ -1,6 +1,6 @@
 {
   "name": "invoice-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A modern invoice application built with Next.js and Electron",
   "main": "electron/main.js",
   "homepage": "./",
@@ -133,11 +133,6 @@
         }
       ],
       "icon": "electron/assets/icon.png"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "OttendorfCipher",
-      "repo": "invoice-app"
     }
   }
 }
