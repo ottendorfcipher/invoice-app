@@ -1,28 +1,37 @@
 const { app, BrowserWindow, shell, dialog } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
-let nextServer;
+let server;
 
-function startNextServer() {
+function startServer() {
   if (!isDev) {
-    // In packaged app, we need to find the correct path to Next.js
-    const appPath = path.join(__dirname, '..');
-    const nextServerPath = path.join(appPath, 'node_modules', 'next', 'dist', 'bin', 'next');
+    // In production, serve the built Next.js files using Express
+    const express = require('express');
+    const next = require('next');
     
-    nextServer = spawn('node', [nextServerPath, 'start'], {
-      cwd: appPath,
-      env: { ...process.env, PORT: '3000' }
+    const nextApp = next({
+      dev: false,
+      dir: path.join(__dirname, '..'),
     });
     
-    nextServer.stdout.on('data', (data) => {
-      console.log(`Next.js: ${data}`);
-    });
+    const handle = nextApp.getRequestHandler();
     
-    nextServer.stderr.on('data', (data) => {
-      console.error(`Next.js Error: ${data}`);
+    nextApp.prepare().then(() => {
+      const expressApp = express();
+      
+      expressApp.all('*', (req, res) => {
+        return handle(req, res);
+      });
+      
+      server = expressApp.listen(3000, (err) => {
+        if (err) throw err;
+        console.log('> Ready on http://localhost:3000');
+      });
+    }).catch((ex) => {
+      console.error('Error starting Next.js:', ex);
+      process.exit(1);
     });
   }
 }
@@ -77,7 +86,7 @@ function createWindow() {
 
 // App event handlers
 app.whenReady().then(() => {
-  startNextServer();
+  startServer();
   createWindow();
 
   app.on('activate', () => {
@@ -94,8 +103,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  if (nextServer && !nextServer.killed) {
-    nextServer.kill();
+  if (server) {
+    server.close();
   }
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "invoice-app",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A modern invoice application built with Next.js and Electron",
   "author": {
     "name": "Nicholas Weiner",
@@ -56,6 +56,7 @@
     "date-fns": "^4.1.0",
     "drizzle-kit": "^0.28.1",
     "drizzle-orm": "^0.36.3",
+    "express": "^5.1.0",
     "jose": "^6.0.11",
     "lucide-react": "^0.511.0",
     "nanoid": "^5.1.5",
