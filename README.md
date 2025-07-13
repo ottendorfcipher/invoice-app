@@ -52,37 +52,6 @@ npm run electron:dev
 
 This will start the Next.js dev server and launch the Electron app automatically.
 
-### Building binaries
-
-To build the app for distribution:
-
-```bash
-# Build for your current platform
-npm run dist
-
-# Build for specific platforms
-npm run dist:mac    # macOS
-npm run dist:win    # Windows
-npm run dist:linux  # Linux
-```
-
-## Releases
-
-Pre-built binaries for macOS, Windows, and Linux are available for download from the [Releases](https://github.com/ottendorfcipher/invoice-app/releases) page on GitHub.
-
-1. **macOS**
-   - Download the `.dmg` file and open it to install the app.
-
-2. **Windows**
-   - Download the `.exe` file and run the installer.
-
-3. **Linux**
-   - Download the `.deb` file for Debian-based distributions and install it using:
-     ```bash
-     sudo dpkg -i invoice-app_1.0.2_amd64.deb
-     ```
-   - Alternatively, use the `.tar.gz` file for other distributions.
-
 ## Tech stack
 
 - **Next.js 15** for the web framework
