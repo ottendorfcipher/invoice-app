@@ -2,6 +2,10 @@
   "name": "invoice-app",
   "version": "1.0.1",
   "description": "A modern invoice application built with Next.js and Electron",
+  "author": {
+    "name": "Nicholas Weiner",
+    "email": "nicholasaweiner@gmail.com"
+  },
   "main": "electron/main.js",
   "homepage": "./",
   "private": true,
