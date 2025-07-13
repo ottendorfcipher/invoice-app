@@ -17,7 +17,13 @@ Simple Invoice helps you create professional invoices quickly. You can manage cu
 - **Status tracking** (draft, pending, paid, overdue)
 - **Duplicate invoices** to save time on similar work
 
-## Quick start
+## Quick start for users
+
+For the easiest installation, download the pre-built binaries from the [Releases](https://github.com/ottendorfcipher/invoice-app/releases) section below.
+
+## Development setup
+
+To run the app in development mode:
 
 1. Install dependencies:
    ```bash
@@ -29,14 +35,53 @@ Simple Invoice helps you create professional invoices quickly. You can manage cu
    npx drizzle-kit push
    ```
 
-3. Start the development server:
+3. Start the web development server:
    ```bash
    npm run dev
    ```
 
 4. Open your browser to `http://localhost:3000`
 
-That's it! Start creating invoices right away.
+### Running as Electron app (development)
+
+To run the desktop app in development:
+
+```bash
+npm run electron:dev
+```
+
+This will start the Next.js dev server and launch the Electron app automatically.
+
+### Building binaries
+
+To build the app for distribution:
+
+```bash
+# Build for your current platform
+npm run dist
+
+# Build for specific platforms
+npm run dist:mac    # macOS
+npm run dist:win    # Windows
+npm run dist:linux  # Linux
+```
+
+## Releases
+
+Pre-built binaries for macOS, Windows, and Linux are available for download from the [Releases](https://github.com/ottendorfcipher/invoice-app/releases) page on GitHub.
+
+1. **macOS**
+   - Download the `.dmg` file and open it to install the app.
+
+2. **Windows**
+   - Download the `.exe` file and run the installer.
+
+3. **Linux**
+   - Download the `.deb` file for Debian-based distributions and install it using:
+     ```bash
+     sudo dpkg -i invoice-app_1.0.2_amd64.deb
+     ```
+   - Alternatively, use the `.tar.gz` file for other distributions.
 
 ## Tech stack
 
