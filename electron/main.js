@@ -8,9 +8,12 @@ let nextServer;
 
 function startNextServer() {
   if (!isDev) {
-    const nextServerPath = path.join(__dirname, '../node_modules/.bin/next');
+    // In packaged app, we need to find the correct path to Next.js
+    const appPath = path.join(__dirname, '..');
+    const nextServerPath = path.join(appPath, 'node_modules', 'next', 'dist', 'bin', 'next');
+    
     nextServer = spawn('node', [nextServerPath, 'start'], {
-      cwd: path.join(__dirname, '..'),
+      cwd: appPath,
       env: { ...process.env, PORT: '3000' }
     });
     
