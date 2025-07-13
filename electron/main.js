@@ -6,34 +6,42 @@ let mainWindow;
 let server;
 
 function startServer() {
-  if (!isDev) {
-    // In production, serve the built Next.js files using Express
-    const express = require('express');
-    const next = require('next');
-    
-    const nextApp = next({
-      dev: false,
-      dir: path.join(__dirname, '..'),
-    });
-    
-    const handle = nextApp.getRequestHandler();
-    
-    nextApp.prepare().then(() => {
-      const expressApp = express();
+  return new Promise((resolve, reject) => {
+    if (!isDev) {
+      // In production, start Next.js server directly
+      const next = require('next');
+      const http = require('http');
       
-      expressApp.all('*', (req, res) => {
-        return handle(req, res);
+      const nextApp = next({ 
+        dev: false, 
+        dir: path.join(__dirname, '..'),
       });
       
-      server = expressApp.listen(3000, (err) => {
-        if (err) throw err;
-        console.log('> Ready on http://localhost:3000');
+      const handle = nextApp.getRequestHandler();
+      
+      nextApp.prepare().then(() => {
+        // Create HTTP server with Next.js handler
+        server = http.createServer((req, res) => {
+          handle(req, res);
+        });
+        
+        server.listen(3000, (err) => {
+          if (err) {
+            console.error('Error starting server:', err);
+            reject(err);
+            return;
+          }
+          console.log('> Next.js server ready on http://localhost:3000');
+          resolve();
+        });
+      }).catch((ex) => {
+        console.error('Error preparing Next.js:', ex);
+        reject(ex);
       });
-    }).catch((ex) => {
-      console.error('Error starting Next.js:', ex);
-      process.exit(1);
-    });
-  }
+    } else {
+      resolve(); // In development, resolve immediately
+    }
+  });
 }
 
 function createWindow() {
@@ -49,22 +57,35 @@ function createWindow() {
       enableRemoteModule: false,
       webSecurity: true,
     },
-    icon: path.join(__dirname, 'assets/icon.png'),
+    icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : process.platform === 'darwin' ? 'icon.icns' : 'icon.png'),
     titleBarStyle: 'default',
     show: false,
+    backgroundColor: '#ffffff', // Set a background color to avoid flashing
   });
 
   const startUrl = 'http://localhost:3000';
   
-  // Wait a bit for the server to start in production
-  const delay = isDev ? 0 : 3000;
-  setTimeout(() => {
+  // Load URL immediately in development, wait for server in production
+  if (isDev) {
     mainWindow.loadURL(startUrl);
-  }, delay);
+  } else {
+    // Wait for server to be ready, then load
+    startServer().then(() => {
+      mainWindow.loadURL(startUrl);
+    }).catch((err) => {
+      dialog.showErrorBox('Server Error', `Failed to start server: ${err.message}`);
+    });
+  }
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    
+    // Focus the window
+    if (process.platform === 'darwin') {
+      app.dock.show();
+    }
+    mainWindow.focus();
   });
 
   // Open external links in browser
@@ -86,7 +107,6 @@ function createWindow() {
 
 // App event handlers
 app.whenReady().then(() => {
-  startServer();
   createWindow();
 
   app.on('activate', () => {
