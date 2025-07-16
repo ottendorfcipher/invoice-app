@@ -25,6 +25,87 @@ import { type DateRange } from 'react-day-picker';
 import Calendar04 from '@/components/calendar-04';
 
 export default function Dashboard() {
+  // Add print styles to head when component mounts
+  useEffect(() => {
+    const printStyles = `
+      @media print {
+        @page {
+          margin: 0.5in;
+          size: letter;
+        }
+        
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        
+        .print-content {
+          display: block !important;
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+          box-shadow: none !important;
+          border: none !important;
+          border-radius: 0 !important;
+        }
+        
+        .print-content * {
+          visibility: visible !important;
+        }
+        
+        body * {
+          visibility: hidden;
+        }
+        
+        .print-content, .print-content * {
+          visibility: visible;
+        }
+        
+        .print-content {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+        
+        /* Hide everything except print content */
+        .min-h-screen > div:not(.print-content) {
+          display: none !important;
+        }
+        
+        /* Ensure proper table printing */
+        table {
+          page-break-inside: auto;
+        }
+        
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+        
+        thead {
+          display: table-header-group;
+        }
+        
+        tbody {
+          display: table-row-group;
+        }
+      }
+    `;
+    
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = printStyles;
+    document.head.appendChild(styleSheet);
+    
+    return () => {
+      document.head.removeChild(styleSheet);
+    };
+  }, []);
   const [activeTab, setActiveTab] = useState<'invoices' | 'customers' | 'companies'>('invoices');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -39,7 +120,11 @@ export default function Dashboard() {
   
   // Advanced filtering state
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
-  const [advancedFilters, setAdvancedFilters] = useState({
+  const [advancedFilters, setAdvancedFilters] = useState<{
+    status: string[];
+    customer: string;
+    amountRange: { min: string; max: string };
+  }>({
     status: [],
     customer: '',
     amountRange: {
@@ -57,8 +142,12 @@ export default function Dashboard() {
   const [dashboardSettings, setDashboardSettings] = useState({
     showRollingTotals: false,
     showInvoiceGenerationTime: false,
-    showPaymentTime: false
+    showPaymentTime: false,
+    showIssueDate: false
   });
+
+  // Ensure Total Amount is checked by default
+  const [showTotalAmount, setShowTotalAmount] = useState(true);
   
   // Print modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -69,10 +158,27 @@ export default function Dashboard() {
     amountRange: { min: '', max: '' },
     dateRange: undefined
   });
+  const [showPrintPreview, setShowPrintPreview] = useState(true);
+  const [printTitle, setPrintTitle] = useState('Invoice Report');
+  const [printSubtitle, setPrintSubtitle] = useState('');
+  const [includeGeneratedDate, setIncludeGeneratedDate] = useState(true);
+  const [includeTotalInvoices, setIncludeTotalInvoices] = useState(true);
+  const [includeTotalAmount, setIncludeTotalAmount] = useState(true);
+  const [includeDisplayDateRange, setIncludeDisplayDateRange] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
   
   // Calendar state (now always enabled)
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  
+  // Auto-enable date range checkbox when date range is selected
+  useEffect(() => {
+    if (dateRange?.from || dateRange?.to) {
+      setIncludeDisplayDateRange(true);
+    } else {
+      setIncludeDisplayDateRange(false);
+    }
+  }, [dateRange]);
 
   useEffect(() => {
     if (activeTab === 'invoices') {
@@ -185,7 +291,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleStatusChange = async (id: string, newStatus: 'draft' | 'open' | 'paid' | 'overdue' | 'canceled') => {
     try {
       const invoice = invoices.find(inv => inv.id === id);
       if (!invoice) return;
@@ -235,7 +341,7 @@ export default function Dashboard() {
   };
 
   // Calculate summary statistics
-const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status === 'draft');
+  const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status === 'draft');
   const overdueInvoices = invoices.filter(inv => inv.status === 'overdue');
   const paidInvoices = invoices.filter(inv => inv.status === 'paid');
   
@@ -440,7 +546,8 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
     setDashboardSettings({
       showRollingTotals: false,
       showInvoiceGenerationTime: false,
-      showPaymentTime: false
+      showPaymentTime: false,
+      showIssueDate: false
     });
     setDateRange(undefined);
     setShowCalendarPicker(false);
@@ -478,7 +585,7 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
       case 'companies': return '/company-profiles/new';
       default: return '#';
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -790,6 +897,18 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                         </Label>
                       </div>
 
+                      {/* Issue Date */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="issueDate"
+                          checked={dashboardSettings.showIssueDate}
+                          onCheckedChange={(checked) => handleSettingsChange('showIssueDate', checked)}
+                        />
+                        <Label htmlFor="issueDate" className="text-sm font-medium">
+                          Show issue date
+                        </Label>
+                      </div>
+
                       {/* Action Buttons */}
                       <div className="flex justify-between pt-4">
                         <Button variant="outline" onClick={resetSettings}>
@@ -811,158 +930,146 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                         <div>
                           <DialogTitle>Print Options</DialogTitle>
                           <DialogDescription>
-                            Select what you want to print and preview the document.
+                            Configure your print settings and preview the report based on your current dashboard view.
                           </DialogDescription>
                         </div>
-                        <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button onClick={() => window.print()} className="bg-black hover:bg-gray-800 text-white mr-8">
                           Print
                         </Button>
                       </div>
                     </DialogHeader>
                     <div className="space-y-6">
-                      <div>
-                        <Label className="text-sm font-medium">Select Print Option</Label>
-                        <Select value={printOption} onValueChange={setPrintOption}>
-                          <SelectTrigger className="mt-2">
-                            <SelectValue placeholder="Choose option" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="currentView">Current View</SelectItem>
-                            <SelectItem value="allInvoices">All Invoices</SelectItem>
-                            <SelectItem value="custom">Custom Print</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      {/* Print Options */}
+                      <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                        {/* Report Title */}
+                        <div>
+                          <Label className="text-sm font-medium">Report Title</Label>
+                          <Input 
+                            value={printTitle}
+                            onChange={(e) => setPrintTitle(e.target.value)}
+                            placeholder="Enter report title"
+                            className="mt-2"
+                          />
+                        </div>
+                        
+                        {/* Report Subtitle */}
+                        <div>
+                          <Label className="text-sm font-medium">Report Subtitle</Label>
+                          <Input 
+                            value={printSubtitle}
+                            onChange={(e) => setPrintSubtitle(e.target.value)}
+                            placeholder="Enter report subtitle (optional)"
+                            className="mt-2"
+                          />
+                        </div>
+                        
+                        {/* Include Generated Date, Total Amount, and Total Invoices */}
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="includeDate"
+                            checked={includeGeneratedDate}
+                            onCheckedChange={(checked) => setIncludeGeneratedDate(checked as boolean)}
+                          />
+                          <Label htmlFor="includeDate" className="text-sm font-medium">
+                            Today's Date
+                          </Label>
+                          <Checkbox 
+                            id="includeTotalAmount"
+                            checked={includeTotalAmount}
+                            onCheckedChange={(checked) => setIncludeTotalAmount(checked as boolean)}
+                          />
+                          <Label htmlFor="includeTotalAmount" className="text-sm font-medium">
+                            Total Amount
+                          </Label>
+                          <Checkbox 
+                            id="includeTotalInvoices"
+                            checked={includeTotalInvoices}
+                            onCheckedChange={(checked) => setIncludeTotalInvoices(checked as boolean)}
+                          />
+                          <Label htmlFor="includeTotalInvoices" className="text-sm font-medium">
+                            Total Invoices
+                          </Label>
+                          {(dateRange?.from || dateRange?.to) && (
+                            <>
+                              <Checkbox 
+                                id="includeDisplayDateRange"
+                                checked={includeDisplayDateRange}
+                                onCheckedChange={(checked) => setIncludeDisplayDateRange(checked as boolean)}
+                              />
+                              <Label htmlFor="includeDisplayDateRange" className="text-sm font-medium">
+                                Display Date Range
+                              </Label>
+                            </>
+                          )}
+                        </div>
                       </div>
                       
-                      {/* Custom Print Options */}
-                      {printOption === 'custom' && (
-                        <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-                          <h3 className="font-medium text-gray-900">Custom Print Filters</h3>
-                          
-                          {/* Status Filter */}
-                          <div>
-                            <Label className="text-sm font-medium">Status</Label>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {['draft', 'open', 'paid', 'overdue'].map((status) => (
-                                <div key={status} className="flex items-center space-x-2">
-                                  <Checkbox 
-                                    id={`print-${status}`}
-                                    checked={customPrintFilters.status.includes(status)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setCustomPrintFilters(prev => ({
-                                          ...prev,
-                                          status: [...prev.status, status]
-                                        }));
-                                      } else {
-                                        setCustomPrintFilters(prev => ({
-                                          ...prev,
-                                          status: prev.status.filter(s => s !== status)
-                                        }));
-                                      }
-                                    }}
-                                  />
-                                  <Label htmlFor={`print-${status}`} className="text-sm capitalize">{status}</Label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          {/* Customer Filter */}
-                          <div>
-                            <Label className="text-sm font-medium">Customer</Label>
-                            <Input 
-                              value={customPrintFilters.customer}
-                              onChange={(e) => setCustomPrintFilters(prev => ({ ...prev, customer: e.target.value }))}
-                              placeholder="Filter by customer name"
-                              className="mt-2"
-                            />
-                          </div>
-                          
-                          {/* Amount Range */}
-                          <div>
-                            <Label className="text-sm font-medium">Amount Range</Label>
-                            <div className="grid grid-cols-2 gap-2 mt-2">
-                              <Input 
-                                type="number"
-                                value={customPrintFilters.amountRange.min}
-                                onChange={(e) => setCustomPrintFilters(prev => ({ 
-                                  ...prev, 
-                                  amountRange: { ...prev.amountRange, min: e.target.value } 
-                                }))}
-                                placeholder="Min amount"
-                              />
-                              <Input 
-                                type="number"
-                                value={customPrintFilters.amountRange.max}
-                                onChange={(e) => setCustomPrintFilters(prev => ({ 
-                                  ...prev, 
-                                  amountRange: { ...prev.amountRange, max: e.target.value } 
-                                }))}
-                                placeholder="Max amount"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
                       {/* Print Preview */}
-                      <div className="border rounded-lg p-4 bg-white print-preview">
-                        <h3 className="font-medium text-gray-900 mb-4">Print Preview</h3>
-                        <div className="print-content">
-                          <div className="text-center mb-6">
-                            <h1 className="text-2xl font-bold text-gray-900">Invoice Report</h1>
-                            <p className="text-gray-600 mt-2">
-                              {printOption === 'currentView' && 'Current View'}
-                              {printOption === 'allInvoices' && 'All Invoices'}
-                              {printOption === 'custom' && 'Custom Selection'}
-                            </p>
-                            <p className="text-sm text-gray-500 mt-1">
-                              Generated on {new Date().toLocaleDateString()}
-                            </p>
-                          </div>
+                      <div className="border rounded-lg bg-white">
+                        <button 
+                          onClick={() => setShowPrintPreview(!showPrintPreview)}
+                          className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <h3 className="font-medium text-gray-900">Preview</h3>
+                          <svg 
+                            className={`h-5 w-5 text-gray-500 transform transition-transform ${showPrintPreview ? 'rotate-90' : ''}`}
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        
+                        {showPrintPreview && (
+                          <div className="px-4 pb-4 print-content">
+                            <div className="text-center mb-6">
+                              <h1 className="text-2xl font-bold text-gray-900">{printTitle}</h1>
+                              {printSubtitle && (
+                                <h2 className="text-lg text-gray-600 mt-2">{printSubtitle}</h2>
+                              )}
+                              {includeGeneratedDate && (
+                                <p className="text-sm text-gray-500 mt-1">
+                                  {new Date().toLocaleDateString()}
+                                </p>
+                              )}
+                              {includeDisplayDateRange && (dateRange?.from || dateRange?.to) && (
+                                <p className="text-sm text-gray-500 mt-1">
+                                  Date Range: {getSelectedDateRangeText()}
+                                </p>
+                              )}
+                            </div>
                           
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b">
                                 <th className="text-left p-2 font-medium">Invoice No.</th>
                                 <th className="text-left p-2 font-medium">Status</th>
+                                {dashboardSettings.showIssueDate && (
+                                  <th className="text-left p-2 font-medium">Issue Date</th>
+                                )}
                                 <th className="text-left p-2 font-medium">Due Date</th>
                                 <th className="text-left p-2 font-medium">Customer</th>
                                 <th className="text-left p-2 font-medium">Amount</th>
-                                <th className="text-left p-2 font-medium">Issue Date</th>
+                                {dashboardSettings.showRollingTotals && (
+                                  <th className="text-left p-2 font-medium">Rolling Total</th>
+                                )}
+                                {dashboardSettings.showInvoiceGenerationTime && (
+                                  <th className="text-left p-2 font-medium">Generation Time</th>
+                                )}
+                                {dashboardSettings.showPaymentTime && (
+                                  <th className="text-left p-2 font-medium">Payment Time</th>
+                                )}
                               </tr>
                             </thead>
                             <tbody>
                               {(() => {
-                                let invoicesToShow;
-                                if (printOption === 'currentView') {
-                                  invoicesToShow = displayInvoices;
-                                } else if (printOption === 'allInvoices') {
-                                  invoicesToShow = invoices;
-                                } else {
-                                  // Custom filtering
-                                  invoicesToShow = invoices.filter(invoice => {
-                                    const customer = typeof invoice.customer === 'string' 
-                                      ? JSON.parse(invoice.customer) 
-                                      : invoice.customer;
-                                    
-                                    const matchesStatus = customPrintFilters.status.length === 0 || 
-                                      customPrintFilters.status.includes(invoice.status);
-                                    
-                                    const matchesCustomer = !customPrintFilters.customer || 
-                                      customer?.name?.toLowerCase().includes(customPrintFilters.customer.toLowerCase());
-                                    
-                                    const matchesAmountRange = (!customPrintFilters.amountRange.min || 
-                                      (invoice.total || 0) >= parseFloat(customPrintFilters.amountRange.min)) &&
-                                      (!customPrintFilters.amountRange.max || 
-                                      (invoice.total || 0) <= parseFloat(customPrintFilters.amountRange.max));
-                                    
-                                    return matchesStatus && matchesCustomer && matchesAmountRange;
-                                  });
-                                }
+                                // Use current dashboard filtering and apply rolling totals if needed
+                                const invoicesWithRollingTotals = dashboardSettings.showRollingTotals 
+                                  ? calculateRollingTotal(filteredInvoices)
+                                  : filteredInvoices;
                                 
-                                return invoicesToShow.map((invoice, index) => {
+                                return invoicesWithRollingTotals.map((invoice, index) => {
                                   const customer = typeof invoice.customer === 'string' 
                                     ? JSON.parse(invoice.customer) 
                                     : invoice.customer;
@@ -980,10 +1087,31 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                                           {invoice.status}
                                         </span>
                                       </td>
+                                      {dashboardSettings.showIssueDate && (
+                                        <td className="p-2">{invoice.issueDate ? formatDate(invoice.issueDate) : 'No issue date'}</td>
+                                      )}
                                       <td className="p-2">{invoice.dueDate ? formatDate(invoice.dueDate) : 'No due date'}</td>
                                       <td className="p-2">{customer?.name || 'Unknown Customer'}</td>
-                                      <td className="p-2">${invoice.total?.toFixed(2) || '0.00'}</td>
-                                      <td className="p-2">{invoice.issueDate ? formatDate(invoice.issueDate) : 'No issue date'}</td>
+                                      <td className="p-2">
+                                        ${invoice.total?.toFixed(2) || '0.00'}</td>
+                                      {dashboardSettings.showRollingTotals && (
+                                        <td className="p-2 font-medium text-blue-600">
+                                          ${invoice.rollingTotal?.toFixed(2) || '0.00'}
+                                        </td>
+                                      )}
+                                      {dashboardSettings.showInvoiceGenerationTime && (
+                                        <td className="p-2 text-sm text-gray-500">
+                                          {invoice.createdAt ? formatTime(invoice.createdAt) : 'N/A'}
+                                        </td>
+                                      )}
+                                      {dashboardSettings.showPaymentTime && (
+                                        <td className="p-2 text-sm text-gray-500">
+                                          {invoice.status === 'paid' ? 
+                                            (invoice.updatedAt ? formatTime(invoice.updatedAt) : 'N/A') : 
+                                            'Not paid'
+                                          }
+                                        </td>
+                                      )}
                                     </tr>
                                   );
                                 });
@@ -991,33 +1119,21 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                             </tbody>
                           </table>
                           
-                          <div className="mt-6 text-right">
-                            <p className="text-sm text-gray-600">
-                              Total Invoices: {(() => {
-                                if (printOption === 'currentView') return displayInvoices.length;
-                                if (printOption === 'allInvoices') return invoices.length;
-                                return invoices.filter(invoice => {
-                                  const customer = typeof invoice.customer === 'string' 
-                                    ? JSON.parse(invoice.customer) 
-                                    : invoice.customer;
-                                  
-                                  const matchesStatus = customPrintFilters.status.length === 0 || 
-                                    customPrintFilters.status.includes(invoice.status);
-                                  
-                                  const matchesCustomer = !customPrintFilters.customer || 
-                                    customer?.name?.toLowerCase().includes(customPrintFilters.customer.toLowerCase());
-                                  
-                                  const matchesAmountRange = (!customPrintFilters.amountRange.min || 
-                                    (invoice.total || 0) >= parseFloat(customPrintFilters.amountRange.min)) &&
-                                    (!customPrintFilters.amountRange.max || 
-                                    (invoice.total || 0) <= parseFloat(customPrintFilters.amountRange.max));
-                                  
-                                  return matchesStatus && matchesCustomer && matchesAmountRange;
-                                }).length;
-                              })()}
-                            </p>
+                          <div className="mt-6 flex flex-col items-end">
+                            {includeTotalInvoices && (
+                              <div className="text-sm text-gray-600 text-left">
+                                Invoices: {filteredInvoices.length}
+                              </div>
+                            )}
+                            
+                            {includeTotalAmount && (
+                              <div className="text-sm text-gray-600 text-left mt-1">
+                                Total Amount: ${filteredInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0).toFixed(2)}
+                              </div>
+                            )}
                           </div>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </DialogContent>
@@ -1115,19 +1231,21 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                       {dashboardSettings.showRollingTotals && (
                         <TableHead>Rolling Total</TableHead>
                       )}
-                      <TableHead 
-                        className="cursor-pointer hover:bg-gray-50 select-none"
-                        onClick={() => handleColumnSort('issueDate')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Issue Date</span>
-                          {sortColumn === 'issueDate' && (
-                            <span className="text-xs">
-                              {sortDirection === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </TableHead>
+                      {dashboardSettings.showIssueDate && (
+                        <TableHead 
+                          className="cursor-pointer hover:bg-gray-50 select-none"
+                          onClick={() => handleColumnSort('issueDate')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Issue Date</span>
+                            {sortColumn === 'issueDate' && (
+                              <span className="text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </TableHead>
+                      )}
                       {dashboardSettings.showInvoiceGenerationTime && (
                         <TableHead>Generation Time</TableHead>
                       )}
@@ -1138,7 +1256,7 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {displayInvoices.map((invoice) => {
+                    {displayInvoices.map((invoice: any) => {
                       const customer = typeof invoice.customer === 'string' 
                         ? JSON.parse(invoice.customer) 
                         : invoice.customer;
@@ -1167,9 +1285,11 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                               ${invoice.rollingTotal?.toFixed(2) || '0.00'}
                             </TableCell>
                           )}
-                          <TableCell>
-                            {invoice.issueDate ? formatDate(invoice.issueDate) : 'No issue date'}
-                          </TableCell>
+                          {dashboardSettings.showIssueDate && (
+                            <TableCell>
+                              {invoice.issueDate ? formatDate(invoice.issueDate) : 'No issue date'}
+                            </TableCell>
+                          )}
                           {dashboardSettings.showInvoiceGenerationTime && (
                             <TableCell className="text-sm text-gray-500">
                               {invoice.createdAt ? formatTime(invoice.createdAt) : 'N/A'}
@@ -1254,6 +1374,15 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                     })}
                   </TableBody>
                 </Table>
+              )}
+              
+              {/* Total Amount display for dashboard */}
+              {filteredInvoices.length > 0 && (
+                <div className="mt-4 text-right px-6 pb-4">
+                  <div className="text-sm text-gray-600 font-bold">
+                    Total Amount: ${filteredInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0).toFixed(2)}
+                  </div>
+                </div>
               )}
             </Card>
           </TabsContent>

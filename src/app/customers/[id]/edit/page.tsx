@@ -114,7 +114,11 @@ export default function EditCustomerPage() {
       if (response.ok) {
         setSaveStatus(prev => ({ ...prev, [field]: 'saved' }));
         setTimeout(() => {
-          setSaveStatus(prev => ({ ...prev, [field]: undefined }));
+          setSaveStatus(prev => {
+            const newStatus = { ...prev };
+            delete newStatus[field];
+            return newStatus;
+          });
         }, 2000);
       } else {
         throw new Error('Save failed');
@@ -122,7 +126,11 @@ export default function EditCustomerPage() {
     } catch (error) {
       setSaveStatus(prev => ({ ...prev, [field]: 'error' }));
       setTimeout(() => {
-        setSaveStatus(prev => ({ ...prev, [field]: undefined }));
+        setSaveStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[field];
+          return newStatus;
+        });
       }, 3000);
     }
   };

@@ -282,8 +282,9 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const result = await db.select().from(invoices).where(eq(invoices.id, id));
-    
+    const instance = await db.getInstance();
+    const result = await instance.select().from(invoices).where(eq(invoices.id, id));
+
     if (result.length === 0) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }

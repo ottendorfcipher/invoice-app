@@ -258,8 +258,8 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
   const [dueDate, setDueDate] = useState(invoice?.dueDate || '');
   const [currency, setCurrency] = useState(invoice?.currency || 'USD');
   const [notes, setNotes] = useState(invoice?.notes || '');
-  const [invoiceTitle, setInvoiceTitle] = useState(invoice?.invoiceTitle || 'Invoice');
-  const [footerMessage, setFooterMessage] = useState(invoice?.footerMessage || 'Thank you for your business!');
+  const [invoiceTitle, setInvoiceTitle] = useState('Invoice');
+  const [footerMessage, setFooterMessage] = useState('Thank you for your business!');
   const [taxRate, setTaxRate] = useState(() => {
     if (invoice?.tax && invoice?.subtotal) {
       return (invoice.tax / invoice.subtotal) * 100;
@@ -788,12 +788,20 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
       
       setCustomerSaveStatus(prev => ({ ...prev, [field]: 'saved' }));
       setTimeout(() => {
-        setCustomerSaveStatus(prev => ({ ...prev, [field]: undefined }));
+        setCustomerSaveStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[field];
+          return newStatus;
+        });
       }, 2000);
     } catch (error) {
       setCustomerSaveStatus(prev => ({ ...prev, [field]: 'error' }));
       setTimeout(() => {
-        setCustomerSaveStatus(prev => ({ ...prev, [field]: undefined }));
+        setCustomerSaveStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[field];
+          return newStatus;
+        });
       }, 3000);
     }
   };
@@ -837,12 +845,20 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
       
       setCompanySaveStatus(prev => ({ ...prev, [field]: 'saved' }));
       setTimeout(() => {
-        setCompanySaveStatus(prev => ({ ...prev, [field]: undefined }));
+        setCompanySaveStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[field];
+          return newStatus;
+        });
       }, 2000);
     } catch (error) {
       setCompanySaveStatus(prev => ({ ...prev, [field]: 'error' }));
       setTimeout(() => {
-        setCompanySaveStatus(prev => ({ ...prev, [field]: undefined }));
+        setCompanySaveStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[field];
+          return newStatus;
+        });
       }, 3000);
     }
   };
@@ -970,7 +986,7 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
                 </label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  onChange={(e) => setStatus(e.target.value as 'draft' | 'open' | 'paid' | 'overdue' | 'canceled')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="draft">Draft</option>
