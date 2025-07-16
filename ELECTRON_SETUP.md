@@ -90,8 +90,8 @@ The workflow creates these files:
 
 ### electron-builder Settings
 Configure in `package.json` under the `build` section:
-- App ID: `com.ottendorfcipher.invoice-app`
-- Product Name: `Invoice App`
+- App ID: `com.ottendorfcipher.simple-invoice`
+- Product Name: `Simple Invoice`
 - Categories: Business applications
 - Auto-updater: GitHub releases
 

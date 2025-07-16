@@ -19,7 +19,7 @@ Simple Invoice helps you create professional invoices quickly. You can manage cu
 
 ## Quick start for users
 
-For the easiest installation, download the pre-built binaries from the [Releases](https://github.com/ottendorfcipher/invoice-app/releases) section below.
+For the easiest installation, download the pre-built binaries from the [Releases](https://github.com/ottendorfcipher/simple-invoice/releases) section below.
 
 ## Development setup
 

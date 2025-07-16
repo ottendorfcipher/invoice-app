@@ -23,8 +23,8 @@
 ### Package.json Build Config
 ```json
 {
-  "appId": "com.ottendorfcipher.invoice-app",
-  "productName": "Invoice App",
+  "appId": "com.ottendorfcipher.simple-invoice",
+  "productName": "Simple Invoice",
   "mac": {
     "icon": "electron/assets/icon.icns",
     "target": [{"target": "dmg", "arch": ["x64", "arm64"]}]
@@ -57,13 +57,13 @@
 
 ### Output Files Expected
 - **macOS**: 
-  - `Invoice App-1.0.1.dmg` (Intel x64)
-  - `Invoice App-1.0.1-arm64.dmg` (Apple Silicon M1/M2)
+  - `Simple Invoice-1.0.1.dmg` (Intel x64)
+  - `Simple Invoice-1.0.1-arm64.dmg` (Apple Silicon M1/M2)
 - **Windows**:
-  - `Invoice App Setup 1.0.1.exe` (NSIS installer)
+  - `Simple Invoice Setup 1.0.1.exe` (NSIS installer)
 - **Linux**:
-  - `Invoice App-1.0.1.tar.gz` (compressed archive)
-  - `invoice-app_1.0.1_amd64.deb` (Debian package)
+  - `Simple Invoice-1.0.1.tar.gz` (compressed archive)
+  - `simple-invoice_1.0.1_amd64.deb` (Debian package)
 
 ## ✅ Release Process
 
@@ -78,7 +78,7 @@
 3. **Release Stage**: Downloads all artifacts and creates GitHub release
 
 ### Release URL
-https://github.com/ottendorfcipher/invoice-app/releases
+https://github.com/ottendorfcipher/simple-invoice/releases
 
 ## ✅ App Features
 

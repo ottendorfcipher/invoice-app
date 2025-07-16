@@ -1,5 +1,5 @@
 {
-  "name": "invoice-app",
+  "name": "simple-invoice",
   "version": "1.0.4",
   "description": "A modern invoice application built with Next.js and Electron",
   "author": {
@@ -87,8 +87,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "com.ottendorfcipher.invoice-app",
-    "productName": "Invoice App",
+    "appId": "com.ottendorfcipher.simple-invoice",
+    "productName": "Simple Invoice",
     "directories": {
       "output": "dist"
     },
