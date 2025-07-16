@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { companyProfiles } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getDb } from '@/db';
 
 export async function GET(
   request: NextRequest,
@@ -9,13 +7,14 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const result = await db.select().from(companyProfiles).where(eq(companyProfiles.id, id));
+    const db = await getDb();
+    const result = db.get('SELECT * FROM companyProfiles WHERE id = ?', [id]);
     
-    if (result.length === 0) {
+    if (!result) {
       return NextResponse.json({ error: 'Company profile not found' }, { status: 404 });
     }
     
-    return NextResponse.json(result[0]);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching company profile:', error);
     return NextResponse.json({ error: 'Failed to fetch company profile' }, { status: 500 });
@@ -29,12 +28,16 @@ export async function PUT(
   const { id } = await params;
   try {
     const body = await request.json();
+    const db = await getDb();
     
     // If this is being set as default, remove default from others
     if (body.isDefault) {
-      await db.update(companyProfiles)
-        .set({ isDefault: false })
-        .where(eq(companyProfiles.isDefault, true));
+      const allCompanies = db.all('SELECT * FROM companyProfiles');
+      for (const company of allCompanies) {
+        if (company.id !== id && company.isDefault) {
+          db.updateRecord('companyProfiles', company.id, { isDefault: false });
+        }
+      }
     }
     
     const updateData = {
@@ -42,17 +45,13 @@ export async function PUT(
       updatedAt: new Date().toISOString(),
     };
     
-    const result = await db
-      .update(companyProfiles)
-      .set(updateData)
-      .where(eq(companyProfiles.id, id))
-      .returning();
+    const result = db.updateRecord('companyProfiles', id, updateData);
     
-    if (result.length === 0) {
+    if (!result) {
       return NextResponse.json({ error: 'Company profile not found' }, { status: 404 });
     }
     
-    return NextResponse.json(result[0]);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error updating company profile:', error);
     return NextResponse.json({ error: 'Failed to update company profile' }, { status: 500 });
@@ -65,12 +64,10 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    const result = await db
-      .delete(companyProfiles)
-      .where(eq(companyProfiles.id, id))
-      .returning();
+    const db = await getDb();
+    const result = db.deleteRecord('companyProfiles', id);
     
-    if (result.length === 0) {
+    if (!result) {
       return NextResponse.json({ error: 'Company profile not found' }, { status: 404 });
     }
     

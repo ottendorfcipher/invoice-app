@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { invoices, customers } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { getDb } from '@/db';
 import { nanoid } from 'nanoid';
 
 export async function GET(request: NextRequest) {
   try {
+    const db = await getDb();
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     
     let result;
     
     if (status) {
-      result = await db.select().from(invoices)
-        .where(eq(invoices.status, status as any))
-        .orderBy(desc(invoices.createdAt));
+      result = db.all(
+        'SELECT * FROM invoices WHERE status = ? ORDER BY createdAt DESC',
+        [status]
+      );
     } else {
-      result = await db.select().from(invoices)
-        .orderBy(desc(invoices.createdAt));
+      result = db.all(
+        'SELECT * FROM invoices ORDER BY createdAt DESC'
+      );
     }
     
     return NextResponse.json(result);
@@ -29,34 +30,44 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const db = await getDb();
     const body = await request.json();
     
     // Generate invoice number if not provided
     const invoiceNumber = body.invoiceNumber || `INV-${Date.now()}`;
     
-    const newInvoice = {
-      id: nanoid(),
+    const id = nanoid();
+    const now = new Date().toISOString();
+    
+    db.run(`
+      INSERT INTO invoices (
+        id, invoiceNumber, status, issueDate, dueDate, subtotal, tax, total,
+        currency, customer, company, lineItems, notes, invoiceTitle, 
+        footerMessage, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id,
       invoiceNumber,
-      status: body.status || 'draft',
-      issueDate: body.issueDate || new Date().toISOString().split('T')[0],
-      dueDate: body.dueDate,
-      subtotal: body.subtotal || 0,
-      tax: body.tax || 0,
-      total: body.total || 0,
-      currency: body.currency || 'USD',
-      customer: JSON.stringify(body.customer || {}),
-      company: JSON.stringify(body.company || {}),
-      lineItems: JSON.stringify(body.lineItems || []),
-      notes: body.notes,
-      template: body.template || 'default',
-      noteBlocks: body.noteBlocks ? JSON.stringify(body.noteBlocks) : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      body.status || 'draft',
+      body.issueDate || new Date().toISOString().split('T')[0],
+      body.dueDate || null,
+      body.subtotal || 0,
+      body.tax || 0,
+      body.total || 0,
+      body.currency || 'USD',
+      JSON.stringify(body.customer || {}),
+      JSON.stringify(body.company || {}),
+      JSON.stringify(body.lineItems || []),
+      body.notes || null,
+      body.invoiceTitle || 'Invoice',
+      body.footerMessage || 'Thank you for your business!',
+      now,
+      now
+    ]);
     
-    const result = await db.insert(invoices).values(newInvoice).returning();
+    const result = db.get('SELECT * FROM invoices WHERE id = ?', [id]);
     
-    return NextResponse.json(result[0]);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating invoice:', error);
     return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });

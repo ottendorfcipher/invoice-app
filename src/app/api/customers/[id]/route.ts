@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { customers } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getDb } from '@/db';
 
 export async function GET(
   request: NextRequest,
@@ -9,13 +7,14 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const result = await db.select().from(customers).where(eq(customers.id, id));
+    const db = await getDb();
+    const result = db.get('SELECT * FROM customers WHERE id = ?', [id]);
     
-    if (result.length === 0) {
+    if (!result) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
     
-    return NextResponse.json(result[0]);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching customer:', error);
     return NextResponse.json({ error: 'Failed to fetch customer' }, { status: 500 });
@@ -28,24 +27,36 @@ export async function PUT(
 ) {
   const { id } = await params;
   try {
+    const db = await getDb();
     const body = await request.json();
     
-    const updateData = {
-      ...body,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    const result = await db
-      .update(customers)
-      .set(updateData)
-      .where(eq(customers.id, id))
-      .returning();
-    
-    if (result.length === 0) {
+    // Check if customer exists
+    const existing = db.get('SELECT * FROM customers WHERE id = ?', [id]);
+    if (!existing) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
     
-    return NextResponse.json(result[0]);
+    const now = new Date().toISOString();
+    
+    db.run(`
+      UPDATE customers SET
+        name = ?, email = ?, address = ?, city = ?, state = ?,
+        postalCode = ?, country = ?, updatedAt = ?
+      WHERE id = ?
+    `, [
+      body.name || existing.name,
+      body.email || existing.email,
+      body.address || existing.address,
+      body.city || existing.city,
+      body.state || existing.state,
+      body.postalCode || existing.postalCode,
+      body.country || existing.country,
+      now,
+      id
+    ]);
+    
+    const result = db.get('SELECT * FROM customers WHERE id = ?', [id]);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error updating customer:', error);
     return NextResponse.json({ error: 'Failed to update customer' }, { status: 500 });
@@ -58,14 +69,15 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    const result = await db
-      .delete(customers)
-      .where(eq(customers.id, id))
-      .returning();
+    const db = await getDb();
     
-    if (result.length === 0) {
+    // Check if customer exists
+    const existing = db.get('SELECT * FROM customers WHERE id = ?', [id]);
+    if (!existing) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
+    
+    db.run('DELETE FROM customers WHERE id = ?', [id]);
     
     return NextResponse.json({ message: 'Customer deleted successfully' });
   } catch (error) {

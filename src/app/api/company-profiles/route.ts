@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { companyProfiles } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { getDb } from '@/db';
 import { nanoid } from 'nanoid';
 
 export async function GET(request: NextRequest) {
   try {
-    const result = await db.select().from(companyProfiles).orderBy(desc(companyProfiles.isDefault), desc(companyProfiles.createdAt));
+    const db = await getDb();
+    const result = db.all(
+      'SELECT * FROM companyProfiles ORDER BY createdAt DESC'
+    );
     
     return NextResponse.json(result);
   } catch (error) {
@@ -17,34 +18,33 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const db = await getDb();
     const body = await request.json();
     
-    // If this is being set as default, remove default from others
-    if (body.isDefault) {
-      await db.update(companyProfiles)
-        .set({ isDefault: false })
-        .where(eq(companyProfiles.isDefault, true));
-    }
+    const id = nanoid();
+    const now = new Date().toISOString();
     
-    const newCompanyProfile = {
-      id: nanoid(),
-      name: body.name,
-      email: body.email || null,
-      phone: body.phone || null,
-      address: body.address || null,
-      city: body.city || null,
-      state: body.state || null,
-      postalCode: body.postalCode || null,
-      country: body.country || null,
-      logo: body.logo || null,
-      isDefault: body.isDefault || false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    db.run(`
+      INSERT INTO companyProfiles (
+        id, name, email, address, city, state, postalCode, country, logo, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id,
+      body.name,
+      body.email || null,
+      body.address || null,
+      body.city || null,
+      body.state || null,
+      body.postalCode || null,
+      body.country || null,
+      body.logo || null,
+      now,
+      now
+    ]);
     
-    const result = await db.insert(companyProfiles).values(newCompanyProfile).returning();
+    const result = db.get('SELECT * FROM companyProfiles WHERE id = ?', [id]);
     
-    return NextResponse.json(result[0]);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating company profile:', error);
     return NextResponse.json({ error: 'Failed to create company profile' }, { status: 500 });

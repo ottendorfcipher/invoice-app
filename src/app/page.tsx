@@ -15,6 +15,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
+import { Settings, CalendarDays } from 'lucide-react';
+import { format, isWithinInterval } from 'date-fns';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'invoices' | 'customers' | 'companies'>('invoices');
@@ -24,6 +31,39 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Advanced filtering state
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState({
+    status: [],
+    customer: '',
+    dateRange: {
+      start: '',
+      end: ''
+    },
+    amountRange: {
+      min: '',
+      max: ''
+    }
+  });
+  
+  // Settings modal state
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [dashboardSettings, setDashboardSettings] = useState({
+    showRollingTotals: false,
+    enableCalendarFilter: false,
+    showInvoiceGenerationTime: false,
+    showPaymentTime: false,
+    calendarRange: null as { start: Date; end: Date } | null
+  });
+  
+  // Calendar icon visibility
+  const [showCalendarIcon, setShowCalendarIcon] = useState(false);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'invoices') {
@@ -118,6 +158,13 @@ export default function Dashboard() {
       const invoice = invoices.find(inv => inv.id === id);
       if (!invoice) return;
       
+      // Optimistically update the UI
+      setInvoices(prevInvoices => 
+        prevInvoices.map(inv => 
+          inv.id === id ? { ...inv, status: newStatus } : inv
+        )
+      );
+      
       const response = await fetch(`/api/invoices/${id}`, {
         method: 'PUT',
         headers: {
@@ -130,10 +177,28 @@ export default function Dashboard() {
       });
       
       if (response.ok) {
-        fetchInvoices();
+        // Refresh to ensure we have the latest data
+        await fetchInvoices();
+      } else {
+        // Revert optimistic update on failure
+        setInvoices(prevInvoices => 
+          prevInvoices.map(inv => 
+            inv.id === id ? { ...inv, status: invoice.status } : inv
+          )
+        );
+        console.error('Failed to update invoice status');
       }
     } catch (error) {
       console.error('Error updating invoice status:', error);
+      // Revert optimistic update on error
+      const originalInvoice = invoices.find(inv => inv.id === id);
+      if (originalInvoice) {
+        setInvoices(prevInvoices => 
+          prevInvoices.map(inv => 
+            inv.id === id ? { ...inv, status: originalInvoice.status } : inv
+          )
+        );
+      }
     }
   };
 
@@ -145,22 +210,215 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
   const openTotal = openInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
   const overdueTotal = overdueInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
   const paidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+  
+  // Calculate rolling totals if enabled
+  const calculateRollingTotal = (invoicesList: any[]) => {
+    return invoicesList.reduce((acc, invoice, index) => {
+      const previousTotal = index > 0 ? acc[index - 1].rollingTotal : 0;
+      const currentTotal = previousTotal + (invoice.total || 0);
+      acc.push({ ...invoice, rollingTotal: currentTotal });
+      return acc;
+    }, [] as any[]);
+  };
 
-  // Filter invoices based on search term and status
-  const filteredInvoices = invoices.filter(invoice => {
+  // Utility function to format dates to MM-DD-YYYY
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric'
+    });
+  };
+  
+  // Utility function to format times to HH:MM AM/PM
+  const formatTime = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+  
+  // Column sorting function
+  const handleColumnSort = (column: string) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to asc
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+  
+  // Sort invoices
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    if (!sortColumn) return 0;
+    
+    let aValue, bValue;
+    
+    switch (sortColumn) {
+      case 'invoiceNumber':
+        aValue = a.invoiceNumber;
+        bValue = b.invoiceNumber;
+        break;
+      case 'status':
+        aValue = a.status;
+        bValue = b.status;
+        break;
+      case 'dueDate':
+        aValue = a.dueDate || '';
+        bValue = b.dueDate || '';
+        break;
+      case 'issueDate':
+        aValue = a.issueDate || '';
+        bValue = b.issueDate || '';
+        break;
+      case 'customer':
+        const customerA = typeof a.customer === 'string' ? JSON.parse(a.customer) : a.customer;
+        const customerB = typeof b.customer === 'string' ? JSON.parse(b.customer) : b.customer;
+        aValue = customerA?.name || '';
+        bValue = customerB?.name || '';
+        break;
+      case 'amount':
+        aValue = a.total || 0;
+        bValue = b.total || 0;
+        break;
+      default:
+        return 0;
+    }
+    
+    // Handle numeric sorting for amount
+    if (sortColumn === 'amount') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    
+    // Handle date sorting
+    if (sortColumn === 'dueDate' || sortColumn === 'issueDate') {
+      const dateA = new Date(aValue);
+      const dateB = new Date(bValue);
+      return sortDirection === 'asc' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+    }
+    
+    // Handle string sorting
+    const comparison = aValue.toString().localeCompare(bValue.toString());
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
+  
+  // Filter invoices based on search term, status, and advanced filters
+  const filteredInvoices = sortedInvoices.filter(invoice => {
     const customer = typeof invoice.customer === 'string' 
       ? JSON.parse(invoice.customer) 
       : invoice.customer;
     
+    // Basic search
     const matchesSearch = !searchTerm || 
       invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.status.toLowerCase().includes(searchTerm.toLowerCase());
     
+    // Basic status filter
     const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    // Advanced filters
+    const matchesAdvancedStatus = advancedFilters.status.length === 0 || 
+      advancedFilters.status.includes(invoice.status);
+    
+    const matchesAdvancedCustomer = !advancedFilters.customer || 
+      customer?.name?.toLowerCase().includes(advancedFilters.customer.toLowerCase());
+    
+    const matchesDateRange = (!advancedFilters.dateRange.start || 
+      new Date(invoice.issueDate || '') >= new Date(advancedFilters.dateRange.start)) &&
+      (!advancedFilters.dateRange.end || 
+      new Date(invoice.issueDate || '') <= new Date(advancedFilters.dateRange.end));
+    
+    const matchesAmountRange = (!advancedFilters.amountRange.min || 
+      (invoice.total || 0) >= parseFloat(advancedFilters.amountRange.min)) &&
+      (!advancedFilters.amountRange.max || 
+      (invoice.total || 0) <= parseFloat(advancedFilters.amountRange.max));
+    
+    // Calendar filter
+    const matchesCalendarFilter = !dashboardSettings.enableCalendarFilter || 
+      !dashboardSettings.calendarRange || 
+      (invoice.issueDate && isWithinInterval(
+        new Date(invoice.issueDate),
+        {
+          start: dashboardSettings.calendarRange.start,
+          end: dashboardSettings.calendarRange.end
+        }
+      ));
+    
+    return matchesSearch && matchesStatus && matchesAdvancedStatus && 
+           matchesAdvancedCustomer && matchesDateRange && matchesAmountRange && matchesCalendarFilter;
   });
+  
+  // Apply rolling totals if enabled
+  const displayInvoices = dashboardSettings.showRollingTotals 
+    ? calculateRollingTotal(filteredInvoices)
+    : filteredInvoices;
+  
+  // Reset advanced filters
+  const resetAdvancedFilters = () => {
+    setAdvancedFilters({
+      status: [],
+      customer: '',
+      dateRange: {
+        start: '',
+        end: ''
+      },
+      amountRange: {
+        min: '',
+        max: ''
+      }
+    });
+  };
+  
+  // Apply advanced filters
+  const applyAdvancedFilters = () => {
+    setShowAdvancedFilter(false);
+  };
+  
+  // Settings modal handlers
+  const handleSettingsChange = (key: string, value: any) => {
+    setDashboardSettings(prev => ({ ...prev, [key]: value }));
+    
+    // Show calendar icon when calendar filter is enabled
+    if (key === 'enableCalendarFilter') {
+      setShowCalendarIcon(value);
+    }
+  };
+  
+  const handleCalendarRangeSelect = (range: { start: Date; end: Date }) => {
+    setDashboardSettings(prev => ({ ...prev, calendarRange: range }));
+  };
+  
+  const applySettings = () => {
+    setShowSettingsModal(false);
+  };
+  
+  const resetSettings = () => {
+    setDashboardSettings({
+      showRollingTotals: false,
+      enableCalendarFilter: false,
+      showInvoiceGenerationTime: false,
+      showPaymentTime: false,
+      calendarRange: null
+    });
+    setShowCalendarIcon(false);
+    setShowCalendarPicker(false);
+  };
+  
+  // Check if advanced filters are active
+  const hasAdvancedFilters = advancedFilters.status.length > 0 || 
+    advancedFilters.customer || 
+    advancedFilters.dateRange.start || 
+    advancedFilters.dateRange.end || 
+    advancedFilters.amountRange.min || 
+    advancedFilters.amountRange.max;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -273,7 +531,7 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 pr-10"
                   />
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center space-x-1">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -290,8 +548,266 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                         <DropdownMenuItem onClick={() => setStatusFilter('overdue')}>Overdue</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    
+                    <Dialog open={showAdvancedFilter} onOpenChange={setShowAdvancedFilter}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className={`h-8 w-8 p-0 ${hasAdvancedFilters ? 'text-blue-600' : ''}`}>
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                          </svg>
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-lg">
+                        <DialogHeader>
+                          <DialogTitle>Sort & Filter</DialogTitle>
+                          <DialogDescription>
+                            Apply advanced filters to your invoices
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          {/* Status Filter */}
+                          <div>
+                            <Label className="text-sm font-medium">Status</Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {['draft', 'open', 'paid', 'overdue'].map((status) => (
+                                <div key={status} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={status}
+                                    checked={advancedFilters.status.includes(status)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setAdvancedFilters(prev => ({
+                                          ...prev,
+                                          status: [...prev.status, status]
+                                        }));
+                                      } else {
+                                        setAdvancedFilters(prev => ({
+                                          ...prev,
+                                          status: prev.status.filter(s => s !== status)
+                                        }));
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={status} className="text-sm capitalize">{status}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Customer Filter */}
+                          <div>
+                            <Label htmlFor="customer-filter" className="text-sm font-medium">Customer</Label>
+                            <Input 
+                              id="customer-filter"
+                              value={advancedFilters.customer}
+                              onChange={(e) => setAdvancedFilters(prev => ({ ...prev, customer: e.target.value }))}
+                              placeholder="Filter by customer name"
+                              className="mt-1"
+                            />
+                          </div>
+                          
+                          {/* Date Range */}
+                          <div>
+                            <Label className="text-sm font-medium">Issue Date Range</Label>
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              <Input 
+                                type="date"
+                                value={advancedFilters.dateRange.start}
+                                onChange={(e) => setAdvancedFilters(prev => ({ 
+                                  ...prev, 
+                                  dateRange: { ...prev.dateRange, start: e.target.value } 
+                                }))}
+                                placeholder="Start date"
+                              />
+                              <Input 
+                                type="date"
+                                value={advancedFilters.dateRange.end}
+                                onChange={(e) => setAdvancedFilters(prev => ({ 
+                                  ...prev, 
+                                  dateRange: { ...prev.dateRange, end: e.target.value } 
+                                }))}
+                                placeholder="End date"
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Amount Range */}
+                          <div>
+                            <Label className="text-sm font-medium">Amount Range</Label>
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              <Input 
+                                type="number"
+                                value={advancedFilters.amountRange.min}
+                                onChange={(e) => setAdvancedFilters(prev => ({ 
+                                  ...prev, 
+                                  amountRange: { ...prev.amountRange, min: e.target.value } 
+                                }))}
+                                placeholder="Min amount"
+                              />
+                              <Input 
+                                type="number"
+                                value={advancedFilters.amountRange.max}
+                                onChange={(e) => setAdvancedFilters(prev => ({ 
+                                  ...prev, 
+                                  amountRange: { ...prev.amountRange, max: e.target.value } 
+                                }))}
+                                placeholder="Max amount"
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex justify-between pt-4">
+                            <Button variant="outline" onClick={resetAdvancedFilters}>
+                              Clear All
+                            </Button>
+                            <Button onClick={applyAdvancedFilters}>
+                              Apply Filters
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
+                
+                {/* Settings Button */}
+                <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Dashboard Settings</DialogTitle>
+                      <DialogDescription>
+                        Configure your dashboard view and filtering options
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-6">
+                      {/* Rolling Totals */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="rollingTotals"
+                          checked={dashboardSettings.showRollingTotals}
+                          onCheckedChange={(checked) => handleSettingsChange('showRollingTotals', checked)}
+                        />
+                        <Label htmlFor="rollingTotals" className="text-sm font-medium">
+                          Show rolling totals column
+                        </Label>
+                      </div>
+                      
+                      {/* Calendar Filter */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="calendarFilter"
+                            checked={dashboardSettings.enableCalendarFilter}
+                            onCheckedChange={(checked) => handleSettingsChange('enableCalendarFilter', checked)}
+                          />
+                          <Label htmlFor="calendarFilter" className="text-sm font-medium">
+                            Enable calendar filtering
+                          </Label>
+                        </div>
+                        
+                        {dashboardSettings.enableCalendarFilter && (
+                          <div className="ml-6">
+                            <Calendar 
+                              mode="range"
+                              onSelect={(range) => {
+                                if (range && range.from && range.to) {
+                                  handleCalendarRangeSelect({ start: range.from, end: range.to });
+                                }
+                              }}
+                              className="rounded-md border max-w-md"
+                              classNames={{
+                                day_range_middle: "bg-blue-100 text-blue-900",
+                                day_range_start: "bg-blue-600 text-white",
+                                day_range_end: "bg-blue-600 text-white",
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Invoice Generation Time */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="invoiceGenerationTime"
+                          checked={dashboardSettings.showInvoiceGenerationTime}
+                          onCheckedChange={(checked) => handleSettingsChange('showInvoiceGenerationTime', checked)}
+                        />
+                        <Label htmlFor="invoiceGenerationTime" className="text-sm font-medium">
+                          Show invoice generation time
+                        </Label>
+                      </div>
+
+                      {/* Payment Time */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="paymentTime"
+                          checked={dashboardSettings.showPaymentTime}
+                          onCheckedChange={(checked) => handleSettingsChange('showPaymentTime', checked)}
+                        />
+                        <Label htmlFor="paymentTime" className="text-sm font-medium">
+                          Show payment time
+                        </Label>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex justify-between pt-4">
+                        <Button variant="outline" onClick={resetSettings}>
+                          Reset All
+                        </Button>
+                        <Button onClick={applySettings}>
+                          Apply Settings
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                
+                {/* Calendar Icon - appears when calendar filter is enabled */}
+                {showCalendarIcon && (
+                  <Dialog open={showCalendarPicker} onOpenChange={setShowCalendarPicker}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        {dashboardSettings.calendarRange ? (
+                          <span className="text-xs">
+                            {format(dashboardSettings.calendarRange.start, 'MMM d')} - {format(dashboardSettings.calendarRange.end, 'MMM d')}
+                          </span>
+                        ) : (
+                          'Select Range'
+                        )}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Select Date Range</DialogTitle>
+                        <DialogDescription>
+                          Choose a date range to filter your invoices
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Calendar 
+                        mode="range"
+                        onSelect={(range) => {
+                          if (range && range.from && range.to) {
+                            handleCalendarRangeSelect({ start: range.from, end: range.to });
+                          }
+                        }}
+                        className="rounded-md border"
+                        classNames={{
+                          day_range_middle: "bg-blue-100 text-blue-900",
+                          day_range_start: "bg-blue-600 text-white",
+                          day_range_end: "bg-blue-600 text-white",
+                        }}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </div>
 
@@ -316,23 +832,104 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Invoice No.</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Issue Date</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 select-none"
+                        onClick={() => handleColumnSort('invoiceNumber')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Invoice No.</span>
+                          {sortColumn === 'invoiceNumber' && (
+                            <span className="text-xs">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 select-none"
+                        onClick={() => handleColumnSort('status')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Status</span>
+                          {sortColumn === 'status' && (
+                            <span className="text-xs">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 select-none"
+                        onClick={() => handleColumnSort('dueDate')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Due Date</span>
+                          {sortColumn === 'dueDate' && (
+                            <span className="text-xs">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 select-none"
+                        onClick={() => handleColumnSort('customer')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Customer</span>
+                          {sortColumn === 'customer' && (
+                            <span className="text-xs">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 select-none"
+                        onClick={() => handleColumnSort('amount')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Amount</span>
+                          {sortColumn === 'amount' && (
+                            <span className="text-xs">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </TableHead>
+                      {dashboardSettings.showRollingTotals && (
+                        <TableHead>Rolling Total</TableHead>
+                      )}
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 select-none"
+                        onClick={() => handleColumnSort('issueDate')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Issue Date</span>
+                          {sortColumn === 'issueDate' && (
+                            <span className="text-xs">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </TableHead>
+                      {dashboardSettings.showInvoiceGenerationTime && (
+                        <TableHead>Generation Time</TableHead>
+                      )}
+                      {dashboardSettings.showPaymentTime && (
+                        <TableHead>Payment Time</TableHead>
+                      )}
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvoices.map((invoice) => {
+                    {displayInvoices.map((invoice) => {
                       const customer = typeof invoice.customer === 'string' 
                         ? JSON.parse(invoice.customer) 
                         : invoice.customer;
                       
                       return (
-                        <TableRow key={invoice.id}>
+                        <TableRow key={invoice.id} className={invoice.status === 'paid' ? 'bg-green-50 opacity-70' : ''}>
                           <TableCell className="font-medium">
                             {invoice.invoiceNumber}
                           </TableCell>
@@ -342,7 +939,7 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {invoice.dueDate || 'No due date'}
+                            {invoice.dueDate ? formatDate(invoice.dueDate) : 'No due date'}
                           </TableCell>
                           <TableCell>
                             {customer?.name || 'Unknown Customer'}
@@ -350,9 +947,27 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                           <TableCell>
                             ${invoice.total?.toFixed(2) || '0.00'}
                           </TableCell>
+                          {dashboardSettings.showRollingTotals && (
+                            <TableCell className="font-medium text-blue-600">
+                              ${invoice.rollingTotal?.toFixed(2) || '0.00'}
+                            </TableCell>
+                          )}
                           <TableCell>
-                            {invoice.issueDate || 'No issue date'}
+                            {invoice.issueDate ? formatDate(invoice.issueDate) : 'No issue date'}
                           </TableCell>
+                          {dashboardSettings.showInvoiceGenerationTime && (
+                            <TableCell className="text-sm text-gray-500">
+                              {invoice.createdAt ? formatTime(invoice.createdAt) : 'N/A'}
+                            </TableCell>
+                          )}
+                          {dashboardSettings.showPaymentTime && (
+                            <TableCell className="text-sm text-gray-500">
+                              {invoice.status === 'paid' ? 
+                                (invoice.updatedAt ? formatTime(invoice.updatedAt) : 'N/A') : 
+                                'Not paid'
+                              }
+                            </TableCell>
+                          )}
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -363,15 +978,22 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/invoices/${invoice.id}/edit`}>
-                                    Open
-                                  </Link>
-                                </DropdownMenuItem>
+                                {invoice.status !== 'paid' && (
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/invoices/${invoice.id}/edit`}>
+                                      Edit
+                                    </Link>
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem 
                                   onClick={() => window.open(`/api/invoices/${invoice.id}/pdf/preview`, '_blank')}
                                 >
                                   Download
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => window.open(`/api/invoices/${invoice.id}/pdf/preview`, '_blank')}
+                                >
+                                  Print
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleDuplicate(invoice)}>
                                   Duplicate

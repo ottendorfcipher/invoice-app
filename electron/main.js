@@ -22,7 +22,14 @@ function startServer() {
       nextApp.prepare().then(() => {
         // Create HTTP server with Next.js handler
         server = http.createServer((req, res) => {
-          handle(req, res);
+          // Add error handling for requests
+          try {
+            handle(req, res);
+          } catch (error) {
+            console.error('Error handling request:', error);
+            res.statusCode = 500;
+            res.end('Internal Server Error');
+          }
         });
         
         server.listen(3000, (err) => {

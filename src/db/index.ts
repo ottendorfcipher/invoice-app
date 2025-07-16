@@ -1,11 +1,20 @@
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
-import * as schema from './schema';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import path from 'path';
+import { getDatabase } from './json-adapter';
 
-const sqlite = new Database('./invoice.db');
-export const db = drizzle(sqlite, { schema });
+// Export database instance
+export { getDatabase as getDb };
 
-// Run migrations on startup
-migrate(db, { migrationsFolder: './drizzle' });
+// For backward compatibility, export a default db instance
+let dbInstance: any = null;
+
+export const db = {
+  async init() {
+    if (!dbInstance) {
+      dbInstance = await getDatabase();
+    }
+    return dbInstance;
+  },
+  
+  async getInstance() {
+    return await this.init();
+  }
+};

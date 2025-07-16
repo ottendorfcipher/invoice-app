@@ -210,9 +210,46 @@ const SortableLineItem = React.memo(({
 // Add display name for better debugging
 SortableLineItem.displayName = 'SortableLineItem';
 
+// Constants for dropdowns
+const COUNTRIES = [
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria',
+  'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan',
+  'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cambodia', 'Cameroon',
+  'Canada', 'Cape Verde', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica',
+  'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'East Timor', 'Ecuador',
+  'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon',
+  'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
+  'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel',
+  'Italy', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kuwait', 'Kyrgyzstan', 'Laos',
+  'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi',
+  'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova',
+  'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands',
+  'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau',
+  'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia',
+  'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia',
+  'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan',
+  'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania',
+  'Thailand', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine',
+  'United Arab Emirates', 'United Kingdom', 'United States of America', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen',
+  'Zambia', 'Zimbabwe'
+];
+
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+  'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+  'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
+  'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
+  'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+  'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+  // US Territories
+  'Puerto Rico', 'U.S. Virgin Islands', 'American Samoa', 'Guam', 'Northern Mariana Islands'
+];
+
 export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [saveNotification, setSaveNotification] = useState<string | null>(null);
   
   // Form state
   const [invoiceNumber, setInvoiceNumber] = useState(invoice?.invoiceNumber || '');
@@ -229,6 +266,112 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
     }
     return 0;
   });
+  
+  // Settings and additional fees
+  const [useCustomInvoiceNumber, setUseCustomInvoiceNumber] = useState(false);
+  
+  // Auto-generate invoice number if not editing and not custom
+  useEffect(() => {
+    if (!isEditing && !useCustomInvoiceNumber && !invoiceNumber) {
+      generateInvoiceNumber();
+    }
+  }, [isEditing, useCustomInvoiceNumber]);
+  
+  // Function to generate the next invoice number
+  const generateInvoiceNumber = async () => {
+    try {
+      const response = await fetch('/api/invoices');
+      const existingInvoices = await response.json();
+      
+      // Get all existing invoice numbers
+      const existingNumbers = existingInvoices.map((inv: any) => inv.invoiceNumber)
+        .filter((num: string) => num && num.match(/^INV-[0-9A-Z]{4}$/));
+      
+      let nextNumber = generateNextInvoiceNumber(existingNumbers);
+      setInvoiceNumber(nextNumber);
+    } catch (error) {
+      console.error('Error generating invoice number:', error);
+      // Fallback to INV-0001 if there's an error
+      setInvoiceNumber('INV-0001');
+    }
+  };
+  
+  // Helper function to generate the next invoice number
+  const generateNextInvoiceNumber = (existingNumbers: string[]) => {
+    // Extract the suffix from existing numbers
+    const suffixes = existingNumbers.map(num => num.split('-')[1]);
+    
+    // Find the highest number
+    let highestSuffix = '0000';
+    for (const suffix of suffixes) {
+      if (suffix > highestSuffix) {
+        highestSuffix = suffix;
+      }
+    }
+    
+    // Generate next number
+    const nextSuffix = incrementInvoiceNumber(highestSuffix);
+    return `INV-${nextSuffix}`;
+  };
+  
+  // Helper function to increment invoice number following the pattern
+  const incrementInvoiceNumber = (current: string) => {
+    // If it's all numbers, increment the number
+    if (/^[0-9]{4}$/.test(current)) {
+      const num = parseInt(current);
+      if (num < 9999) {
+        return (num + 1).toString().padStart(4, '0');
+      } else {
+        return 'A001';
+      }
+    }
+    
+    // If it starts with a letter, handle letter + number increment
+    const match = current.match(/^([A-Z])([0-9]{3})$/);
+    if (match) {
+      const letter = match[1];
+      const number = parseInt(match[2]);
+      
+      if (number < 999) {
+        return `${letter}${(number + 1).toString().padStart(3, '0')}`;
+      } else {
+        // Move to next letter
+        const nextLetter = String.fromCharCode(letter.charCodeAt(0) + 1);
+        if (nextLetter <= 'Z') {
+          return `${nextLetter}001`;
+        } else {
+          // If we've exhausted single letters, go to double letters
+          return 'AA01';
+        }
+      }
+    }
+    
+    // Handle double letters (AA01, AB01, etc.)
+    const doubleMatch = current.match(/^([A-Z]{2})([0-9]{2})$/);
+    if (doubleMatch) {
+      const letters = doubleMatch[1];
+      const number = parseInt(doubleMatch[2]);
+      
+      if (number < 99) {
+        return `${letters}${(number + 1).toString().padStart(2, '0')}`;
+      } else {
+        // Increment letters
+        const firstLetter = letters[0];
+        const secondLetter = letters[1];
+        
+        if (secondLetter < 'Z') {
+          return `${firstLetter}${String.fromCharCode(secondLetter.charCodeAt(0) + 1)}01`;
+        } else if (firstLetter < 'Z') {
+          return `${String.fromCharCode(firstLetter.charCodeAt(0) + 1)}A01`;
+        } else {
+          return 'AAA1';
+        }
+      }
+    }
+    
+    // Fallback
+    return '0001';
+  };
   
   // Customer and company data
   const [customer, setCustomer] = useState<Customer>(() => {
@@ -506,14 +649,6 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
     }
   };
 
-  const handlePreview = async () => {
-    if (isEditing && invoice?.id) {
-      // If editing existing invoice, use the current invoice ID
-      window.open(`/api/invoices/${invoice.id}/pdf/preview`, '_blank');
-    } else {
-      alert('Please save the invoice first to preview the PDF.');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -798,6 +933,22 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
                 ⚙️
               </button>
             </div>
+            
+            {/* Invoice Title - Full Width Row */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Invoice Title
+              </label>
+              <input
+                type="text"
+                value={invoiceTitle}
+                onChange={(e) => setInvoiceTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Invoice"
+              />
+            </div>
+            
+            {/* Other Details - Two Column Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -807,7 +958,9 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
                   type="text"
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${!useCustomInvoiceNumber ? 'bg-gray-50' : ''}`}
+                  disabled={!useCustomInvoiceNumber}
+                  placeholder={!useCustomInvoiceNumber ? 'Auto-generated' : 'Enter invoice number'}
                   required
                 />
               </div>
@@ -850,30 +1003,6 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Invoice Title
-                </label>
-                <input
-                  type="text"
-                  value={invoiceTitle}
-                  onChange={(e) => setInvoiceTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Invoice"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Footer Message
-                </label>
-                <input
-                  type="text"
-                  value={footerMessage}
-                  onChange={(e) => setFooterMessage(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Thank you for your business!"
-                />
-              </div>
             </div>
           </div>
           
@@ -892,6 +1021,24 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
                   </button>
                 </div>
                 <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={useCustomInvoiceNumber}
+                      onChange={() => {
+                        setUseCustomInvoiceNumber(prev => {
+                          const newValue = !prev;
+                          if (!newValue && !isEditing) {
+                            // If switching back to auto-generation, generate a new number
+                            generateInvoiceNumber();
+                          }
+                          return newValue;
+                        });
+                      }}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label className="ml-2 text-sm text-gray-600">Custom Invoice Number</label>
+                  </div>
                   <div className="flex items-center">
                     <input
                       type="checkbox"
@@ -950,7 +1097,7 @@ export default function InvoiceForm({ invoice, isEditing = false }: InvoiceFormP
                       setCompanyChanged(true);
                       debouncedSave(saveCompanyRealTime, 'name');
                     }}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 pl-10 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
 onFocus={() => {
   if (filteredCompanies.length > 0) {
@@ -961,6 +1108,12 @@ onBlur={() => {
   setTimeout(() => setShowCompanyDropdown(false), 150);
 }}
                   />
+                  {/* Magnifying glass icon */}
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                  </div>
                   <StatusIcon status={companySaveStatus.name} />
                 </div>
                 
@@ -1046,10 +1199,31 @@ onBlur={() => {
               </div>
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Country
+                </label>
+                <select
+                  value={company.country}
+                  onChange={(e) => {
+                    setCompany(prev => ({ ...prev, country: e.target.value }));
+                    setCompanyChanged(true);
+                    debouncedSave(saveCompanyRealTime, 'country');
+                  }}
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a country</option>
+                  {COUNTRIES.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+                <StatusIcon status={companySaveStatus.country} />
+              </div>
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   State
                 </label>
-                <input
-                  type="text"
+                <select
                   value={company.state}
                   onChange={(e) => {
                     setCompany(prev => ({ ...prev, state: e.target.value }));
@@ -1057,7 +1231,15 @@ onBlur={() => {
                     debouncedSave(saveCompanyRealTime, 'state');
                   }}
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  disabled={company.country !== 'United States of America'}
+                >
+                  <option value="">Select a state</option>
+                  {company.country === 'United States of America' && US_STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
                 <StatusIcon status={companySaveStatus.state} />
               </div>
               <div className="relative">
@@ -1075,22 +1257,6 @@ onBlur={() => {
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <StatusIcon status={companySaveStatus.postalCode} />
-              </div>
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Country
-                </label>
-                <input
-                  type="text"
-                  value={company.country}
-                  onChange={(e) => {
-                    setCompany(prev => ({ ...prev, country: e.target.value }));
-                    setCompanyChanged(true);
-                    debouncedSave(saveCompanyRealTime, 'country');
-                  }}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <StatusIcon status={companySaveStatus.country} />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1144,7 +1310,7 @@ onBlur={() => {
                       setCustomerChanged(true);
                       debouncedSave(saveCustomerRealTime, 'name');
                     }}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 pl-10 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
 onFocus={() => {
   if (filteredCustomers.length > 0) {
@@ -1155,6 +1321,12 @@ onBlur={() => {
   setTimeout(() => setShowCustomerDropdown(false), 150);
 }}
                   />
+                  {/* Magnifying glass icon */}
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                  </div>
                   <StatusIcon status={customerSaveStatus.name} />
                 </div>
                 
@@ -1240,10 +1412,31 @@ onBlur={() => {
               </div>
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Country
+                </label>
+                <select
+                  value={customer.country}
+                  onChange={(e) => {
+                    setCustomer(prev => ({ ...prev, country: e.target.value }));
+                    setCustomerChanged(true);
+                    debouncedSave(saveCustomerRealTime, 'country');
+                  }}
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a country</option>
+                  {COUNTRIES.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+                <StatusIcon status={customerSaveStatus.country} />
+              </div>
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   State
                 </label>
-                <input
-                  type="text"
+                <select
                   value={customer.state}
                   onChange={(e) => {
                     setCustomer(prev => ({ ...prev, state: e.target.value }));
@@ -1251,7 +1444,15 @@ onBlur={() => {
                     debouncedSave(saveCustomerRealTime, 'state');
                   }}
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  disabled={customer.country !== 'United States of America'}
+                >
+                  <option value="">Select a state</option>
+                  {customer.country === 'United States of America' && US_STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
                 <StatusIcon status={customerSaveStatus.state} />
               </div>
               <div className="relative">
@@ -1269,22 +1470,6 @@ onBlur={() => {
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <StatusIcon status={customerSaveStatus.postalCode} />
-              </div>
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Country
-                </label>
-                <input
-                  type="text"
-                  value={customer.country}
-                  onChange={(e) => {
-                    setCustomer(prev => ({ ...prev, country: e.target.value }));
-                    setCustomerChanged(true);
-                    debouncedSave(saveCustomerRealTime, 'country');
-                  }}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <StatusIcon status={customerSaveStatus.country} />
               </div>
             </div>
           </div>
@@ -1422,16 +1607,35 @@ onBlur={() => {
             </div>
           </div>
           
-          {/* Notes */}
+          {/* Additional Info */}
           <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Notes</h2>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={4}
-              placeholder="Additional notes or terms..."
-            />
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Additional Info</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={6}
+                  placeholder="Additional notes or terms..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Footer Message
+                </label>
+                <textarea
+                  value={footerMessage}
+                  onChange={(e) => setFooterMessage(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={6}
+                  placeholder="Thank you for your business!"
+                />
+              </div>
+            </div>
           </div>
           
           {/* Actions */}
@@ -1477,15 +1681,6 @@ onBlur={() => {
               </DialogContent>
             </Dialog>
             
-            {isEditing && (
-              <button
-                type="button"
-                onClick={handlePreview}
-                className="px-4 py-2 border border-purple-300 text-purple-700 rounded-md text-sm font-medium hover:bg-purple-50"
-              >
-                Preview PDF
-              </button>
-            )}
             <button
               type="submit"
               disabled={loading}
