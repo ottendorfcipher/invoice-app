@@ -19,9 +19,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar } from '@/components/ui/calendar';
 import { Settings, CalendarDays } from 'lucide-react';
 import { format, isWithinInterval } from 'date-fns';
+import { type DateRange } from 'react-day-picker';
+import Calendar04 from '@/components/calendar-04';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'invoices' | 'customers' | 'companies'>('invoices');
@@ -41,39 +42,70 @@ export default function Dashboard() {
   const [advancedFilters, setAdvancedFilters] = useState({
     status: [],
     customer: '',
-    dateRange: {
-      start: '',
-      end: ''
-    },
     amountRange: {
       min: '',
       max: ''
     }
   });
   
+  // Customer autocomplete state
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  
   // Settings modal state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [dashboardSettings, setDashboardSettings] = useState({
     showRollingTotals: false,
-    enableCalendarFilter: false,
     showInvoiceGenerationTime: false,
-    showPaymentTime: false,
-    calendarRange: null as { start: Date; end: Date } | null
+    showPaymentTime: false
   });
   
-  // Calendar icon visibility
-  const [showCalendarIcon, setShowCalendarIcon] = useState(false);
+  // Print modal state
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printOption, setPrintOption] = useState('currentView');
+  const [customPrintFilters, setCustomPrintFilters] = useState({
+    status: [] as string[],
+    customer: '',
+    amountRange: { min: '', max: '' },
+    dateRange: undefined
+  });
+  
+  // Calendar state (now always enabled)
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   useEffect(() => {
     if (activeTab === 'invoices') {
       fetchInvoices();
+      // Also fetch customers for the filter autocomplete
+      fetchCustomers();
     } else if (activeTab === 'customers') {
       fetchCustomers();
     } else if (activeTab === 'companies') {
       fetchCompanyProfiles();
     }
   }, [activeTab]);
+  
+  // Customer autocomplete filtering
+  useEffect(() => {
+    if (advancedFilters.customer.length > 0) {
+      const filtered = customers.filter(c => 
+        c.name.toLowerCase().includes(advancedFilters.customer.toLowerCase()) &&
+        c.name.toLowerCase() !== advancedFilters.customer.toLowerCase()
+      );
+      setFilteredCustomers(filtered);
+      
+      // Auto-show dropdown when typing and there are matches
+      if (filtered.length > 0) {
+        setShowCustomerDropdown(true);
+      } else {
+        setShowCustomerDropdown(false);
+      }
+    } else {
+      setFilteredCustomers([]);
+      setShowCustomerDropdown(false);
+    }
+  }, [advancedFilters.customer, customers]);
 
   const fetchInvoices = async () => {
     try {
@@ -331,29 +363,21 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
     const matchesAdvancedCustomer = !advancedFilters.customer || 
       customer?.name?.toLowerCase().includes(advancedFilters.customer.toLowerCase());
     
-    const matchesDateRange = (!advancedFilters.dateRange.start || 
-      new Date(invoice.issueDate || '') >= new Date(advancedFilters.dateRange.start)) &&
-      (!advancedFilters.dateRange.end || 
-      new Date(invoice.issueDate || '') <= new Date(advancedFilters.dateRange.end));
-    
     const matchesAmountRange = (!advancedFilters.amountRange.min || 
       (invoice.total || 0) >= parseFloat(advancedFilters.amountRange.min)) &&
       (!advancedFilters.amountRange.max || 
       (invoice.total || 0) <= parseFloat(advancedFilters.amountRange.max));
     
-    // Calendar filter
-    const matchesCalendarFilter = !dashboardSettings.enableCalendarFilter || 
-      !dashboardSettings.calendarRange || 
-      (invoice.issueDate && isWithinInterval(
-        new Date(invoice.issueDate),
-        {
-          start: dashboardSettings.calendarRange.start,
-          end: dashboardSettings.calendarRange.end
-        }
-      ));
+    // Calendar filter (now using dateRange)
+    const matchesCalendarFilter = (!dateRange?.from && !dateRange?.to) || 
+      (invoice.issueDate && dateRange?.from && dateRange?.to &&
+        new Date(invoice.issueDate) >= dateRange.from &&
+        new Date(invoice.issueDate) <= dateRange.to) ||
+      (invoice.issueDate && dateRange?.from && !dateRange?.to &&
+        new Date(invoice.issueDate).toDateString() === dateRange.from.toDateString());
     
     return matchesSearch && matchesStatus && matchesAdvancedStatus && 
-           matchesAdvancedCustomer && matchesDateRange && matchesAmountRange && matchesCalendarFilter;
+           matchesAdvancedCustomer && matchesAmountRange && matchesCalendarFilter;
   });
   
   // Apply rolling totals if enabled
@@ -366,10 +390,6 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
     setAdvancedFilters({
       status: [],
       customer: '',
-      dateRange: {
-        start: '',
-        end: ''
-      },
       amountRange: {
         min: '',
         max: ''
@@ -377,23 +397,39 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
     });
   };
   
+  // Select customer from dropdown
+  const selectCustomer = (selectedCustomer: Customer) => {
+    setAdvancedFilters(prev => ({ ...prev, customer: selectedCustomer.name }));
+    setShowCustomerDropdown(false);
+  };
+  
   // Apply advanced filters
   const applyAdvancedFilters = () => {
     setShowAdvancedFilter(false);
   };
   
-  // Settings modal handlers
-  const handleSettingsChange = (key: string, value: any) => {
-    setDashboardSettings(prev => ({ ...prev, [key]: value }));
-    
-    // Show calendar icon when calendar filter is enabled
-    if (key === 'enableCalendarFilter') {
-      setShowCalendarIcon(value);
+  // Calendar date selection handlers
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    setDateRange(range);
+  };
+  
+  const clearAllSelectedDates = () => {
+    setDateRange(undefined);
+  };
+  
+  const getSelectedDateRangeText = () => {
+    if (dateRange?.from && dateRange?.to) {
+      return `${format(dateRange.from, 'MMM d')} - ${format(dateRange.to, 'MMM d')}`;
+    } else if (dateRange?.from) {
+      return format(dateRange.from, 'MMM d');
+    } else {
+      return 'Select Range';
     }
   };
   
-  const handleCalendarRangeSelect = (range: { start: Date; end: Date }) => {
-    setDashboardSettings(prev => ({ ...prev, calendarRange: range }));
+  // Settings modal handlers
+  const handleSettingsChange = (key: string, value: any) => {
+    setDashboardSettings(prev => ({ ...prev, [key]: value }));
   };
   
   const applySettings = () => {
@@ -403,20 +439,16 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
   const resetSettings = () => {
     setDashboardSettings({
       showRollingTotals: false,
-      enableCalendarFilter: false,
       showInvoiceGenerationTime: false,
-      showPaymentTime: false,
-      calendarRange: null
+      showPaymentTime: false
     });
-    setShowCalendarIcon(false);
+    setDateRange(undefined);
     setShowCalendarPicker(false);
   };
   
   // Check if advanced filters are active
   const hasAdvancedFilters = advancedFilters.status.length > 0 || 
     advancedFilters.customer || 
-    advancedFilters.dateRange.start || 
-    advancedFilters.dateRange.end || 
     advancedFilters.amountRange.min || 
     advancedFilters.amountRange.max;
 
@@ -532,34 +564,17 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                     className="pl-10 pr-10"
                   />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center space-x-1">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                          </svg>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setStatusFilter('all')}>All Status</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter('draft')}>Draft</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter('open')}>Open</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter('paid')}>Paid</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setStatusFilter('overdue')}>Overdue</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    
                     <Dialog open={showAdvancedFilter} onOpenChange={setShowAdvancedFilter}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="sm" className={`h-8 w-8 p-0 ${hasAdvancedFilters ? 'text-blue-600' : ''}`}>
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                           </svg>
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-lg">
                         <DialogHeader>
-                          <DialogTitle>Sort & Filter</DialogTitle>
+                          <DialogTitle>Filter</DialogTitle>
                           <DialogDescription>
                             Apply advanced filters to your invoices
                           </DialogDescription>
@@ -594,41 +609,49 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                             </div>
                           </div>
                           
-                          {/* Customer Filter */}
-                          <div>
+                          {/* Customer Filter with Autocomplete */}
+                          <div className="relative">
                             <Label htmlFor="customer-filter" className="text-sm font-medium">Customer</Label>
-                            <Input 
-                              id="customer-filter"
-                              value={advancedFilters.customer}
-                              onChange={(e) => setAdvancedFilters(prev => ({ ...prev, customer: e.target.value }))}
-                              placeholder="Filter by customer name"
-                              className="mt-1"
-                            />
-                          </div>
-                          
-                          {/* Date Range */}
-                          <div>
-                            <Label className="text-sm font-medium">Issue Date Range</Label>
-                            <div className="grid grid-cols-2 gap-2 mt-1">
+                            <div className="relative mt-1">
                               <Input 
-                                type="date"
-                                value={advancedFilters.dateRange.start}
-                                onChange={(e) => setAdvancedFilters(prev => ({ 
-                                  ...prev, 
-                                  dateRange: { ...prev.dateRange, start: e.target.value } 
-                                }))}
-                                placeholder="Start date"
+                                id="customer-filter"
+                                value={advancedFilters.customer}
+                                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, customer: e.target.value }))}
+                                placeholder="Filter by customer name"
+                                className="pl-10"
+                                onFocus={() => {
+                                  if (filteredCustomers.length > 0) {
+                                    setShowCustomerDropdown(true);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setTimeout(() => setShowCustomerDropdown(false), 150);
+                                }}
                               />
-                              <Input 
-                                type="date"
-                                value={advancedFilters.dateRange.end}
-                                onChange={(e) => setAdvancedFilters(prev => ({ 
-                                  ...prev, 
-                                  dateRange: { ...prev.dateRange, end: e.target.value } 
-                                }))}
-                                placeholder="End date"
-                              />
+                              {/* Magnifying glass icon */}
+                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                                </svg>
+                              </div>
                             </div>
+                            
+                            {/* Customer dropdown */}
+                            {showCustomerDropdown && filteredCustomers.length > 0 && (
+                              <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
+                                {filteredCustomers.map((customer) => (
+                                  <button
+                                    key={customer.id}
+                                    type="button"
+                                    onClick={() => selectCustomer(customer)}
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <div className="font-medium">{customer.name}</div>
+                                    <div className="text-sm text-gray-500">{customer.email || 'No email'}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           
                           {/* Amount Range */}
@@ -671,6 +694,50 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                   </div>
                 </div>
                 
+                {/* Calendar Range Button */}
+                <Dialog open={showCalendarPicker} onOpenChange={setShowCalendarPicker}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4" />
+                      <span className="text-xs">{getSelectedDateRangeText()}</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Select Date Range</DialogTitle>
+                      <DialogDescription>
+                        Click to select a start date, then click another date to create a range. Click a selected date to deselect it.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col items-center space-y-6 p-4">
+                      <div className="w-full flex justify-center">
+                        <Calendar04 
+                          selected={dateRange}
+                          onSelect={handleDateRangeSelect}
+                          className="rounded-md border bg-background p-4"
+                        />
+                      </div>
+                      
+                      <div className="flex justify-between w-full pt-4">
+                        <Button variant="outline" onClick={clearAllSelectedDates}>
+                          Clear Selection
+                        </Button>
+                        <Button onClick={() => setShowCalendarPicker(false)}>
+                          Done
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                
+                {/* Print Button */}
+                <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setShowPrintModal(true)}>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </Button>
+                
                 {/* Settings Button */}
                 <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
                   <DialogTrigger asChild>
@@ -697,39 +764,6 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                         <Label htmlFor="rollingTotals" className="text-sm font-medium">
                           Show rolling totals column
                         </Label>
-                      </div>
-                      
-                      {/* Calendar Filter */}
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox 
-                            id="calendarFilter"
-                            checked={dashboardSettings.enableCalendarFilter}
-                            onCheckedChange={(checked) => handleSettingsChange('enableCalendarFilter', checked)}
-                          />
-                          <Label htmlFor="calendarFilter" className="text-sm font-medium">
-                            Enable calendar filtering
-                          </Label>
-                        </div>
-                        
-                        {dashboardSettings.enableCalendarFilter && (
-                          <div className="ml-6">
-                            <Calendar 
-                              mode="range"
-                              onSelect={(range) => {
-                                if (range && range.from && range.to) {
-                                  handleCalendarRangeSelect({ start: range.from, end: range.to });
-                                }
-                              }}
-                              className="rounded-md border max-w-md"
-                              classNames={{
-                                day_range_middle: "bg-blue-100 text-blue-900",
-                                day_range_start: "bg-blue-600 text-white",
-                                day_range_end: "bg-blue-600 text-white",
-                              }}
-                            />
-                          </div>
-                        )}
                       </div>
                       
                       {/* Invoice Generation Time */}
@@ -769,45 +803,226 @@ const openInvoices = invoices.filter(inv => inv.status === 'open' || inv.status 
                   </DialogContent>
                 </Dialog>
                 
-                {/* Calendar Icon - appears when calendar filter is enabled */}
-                {showCalendarIcon && (
-                  <Dialog open={showCalendarPicker} onOpenChange={setShowCalendarPicker}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4" />
-                        {dashboardSettings.calendarRange ? (
-                          <span className="text-xs">
-                            {format(dashboardSettings.calendarRange.start, 'MMM d')} - {format(dashboardSettings.calendarRange.end, 'MMM d')}
-                          </span>
-                        ) : (
-                          'Select Range'
-                        )}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Select Date Range</DialogTitle>
-                        <DialogDescription>
-                          Choose a date range to filter your invoices
-                        </DialogDescription>
-                      </DialogHeader>
-                      <Calendar 
-                        mode="range"
-                        onSelect={(range) => {
-                          if (range && range.from && range.to) {
-                            handleCalendarRangeSelect({ start: range.from, end: range.to });
-                          }
-                        }}
-                        className="rounded-md border"
-                        classNames={{
-                          day_range_middle: "bg-blue-100 text-blue-900",
-                          day_range_start: "bg-blue-600 text-white",
-                          day_range_end: "bg-blue-600 text-white",
-                        }}
-                      />
-                    </DialogContent>
-                  </Dialog>
-                )}
+                {/* Print Modal */}
+                <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
+                  <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <DialogTitle>Print Options</DialogTitle>
+                          <DialogDescription>
+                            Select what you want to print and preview the document.
+                          </DialogDescription>
+                        </div>
+                        <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white">
+                          Print
+                        </Button>
+                      </div>
+                    </DialogHeader>
+                    <div className="space-y-6">
+                      <div>
+                        <Label className="text-sm font-medium">Select Print Option</Label>
+                        <Select value={printOption} onValueChange={setPrintOption}>
+                          <SelectTrigger className="mt-2">
+                            <SelectValue placeholder="Choose option" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="currentView">Current View</SelectItem>
+                            <SelectItem value="allInvoices">All Invoices</SelectItem>
+                            <SelectItem value="custom">Custom Print</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Custom Print Options */}
+                      {printOption === 'custom' && (
+                        <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                          <h3 className="font-medium text-gray-900">Custom Print Filters</h3>
+                          
+                          {/* Status Filter */}
+                          <div>
+                            <Label className="text-sm font-medium">Status</Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {['draft', 'open', 'paid', 'overdue'].map((status) => (
+                                <div key={status} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`print-${status}`}
+                                    checked={customPrintFilters.status.includes(status)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setCustomPrintFilters(prev => ({
+                                          ...prev,
+                                          status: [...prev.status, status]
+                                        }));
+                                      } else {
+                                        setCustomPrintFilters(prev => ({
+                                          ...prev,
+                                          status: prev.status.filter(s => s !== status)
+                                        }));
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={`print-${status}`} className="text-sm capitalize">{status}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Customer Filter */}
+                          <div>
+                            <Label className="text-sm font-medium">Customer</Label>
+                            <Input 
+                              value={customPrintFilters.customer}
+                              onChange={(e) => setCustomPrintFilters(prev => ({ ...prev, customer: e.target.value }))}
+                              placeholder="Filter by customer name"
+                              className="mt-2"
+                            />
+                          </div>
+                          
+                          {/* Amount Range */}
+                          <div>
+                            <Label className="text-sm font-medium">Amount Range</Label>
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              <Input 
+                                type="number"
+                                value={customPrintFilters.amountRange.min}
+                                onChange={(e) => setCustomPrintFilters(prev => ({ 
+                                  ...prev, 
+                                  amountRange: { ...prev.amountRange, min: e.target.value } 
+                                }))}
+                                placeholder="Min amount"
+                              />
+                              <Input 
+                                type="number"
+                                value={customPrintFilters.amountRange.max}
+                                onChange={(e) => setCustomPrintFilters(prev => ({ 
+                                  ...prev, 
+                                  amountRange: { ...prev.amountRange, max: e.target.value } 
+                                }))}
+                                placeholder="Max amount"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Print Preview */}
+                      <div className="border rounded-lg p-4 bg-white print-preview">
+                        <h3 className="font-medium text-gray-900 mb-4">Print Preview</h3>
+                        <div className="print-content">
+                          <div className="text-center mb-6">
+                            <h1 className="text-2xl font-bold text-gray-900">Invoice Report</h1>
+                            <p className="text-gray-600 mt-2">
+                              {printOption === 'currentView' && 'Current View'}
+                              {printOption === 'allInvoices' && 'All Invoices'}
+                              {printOption === 'custom' && 'Custom Selection'}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Generated on {new Date().toLocaleDateString()}
+                            </p>
+                          </div>
+                          
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left p-2 font-medium">Invoice No.</th>
+                                <th className="text-left p-2 font-medium">Status</th>
+                                <th className="text-left p-2 font-medium">Due Date</th>
+                                <th className="text-left p-2 font-medium">Customer</th>
+                                <th className="text-left p-2 font-medium">Amount</th>
+                                <th className="text-left p-2 font-medium">Issue Date</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                let invoicesToShow;
+                                if (printOption === 'currentView') {
+                                  invoicesToShow = displayInvoices;
+                                } else if (printOption === 'allInvoices') {
+                                  invoicesToShow = invoices;
+                                } else {
+                                  // Custom filtering
+                                  invoicesToShow = invoices.filter(invoice => {
+                                    const customer = typeof invoice.customer === 'string' 
+                                      ? JSON.parse(invoice.customer) 
+                                      : invoice.customer;
+                                    
+                                    const matchesStatus = customPrintFilters.status.length === 0 || 
+                                      customPrintFilters.status.includes(invoice.status);
+                                    
+                                    const matchesCustomer = !customPrintFilters.customer || 
+                                      customer?.name?.toLowerCase().includes(customPrintFilters.customer.toLowerCase());
+                                    
+                                    const matchesAmountRange = (!customPrintFilters.amountRange.min || 
+                                      (invoice.total || 0) >= parseFloat(customPrintFilters.amountRange.min)) &&
+                                      (!customPrintFilters.amountRange.max || 
+                                      (invoice.total || 0) <= parseFloat(customPrintFilters.amountRange.max));
+                                    
+                                    return matchesStatus && matchesCustomer && matchesAmountRange;
+                                  });
+                                }
+                                
+                                return invoicesToShow.map((invoice, index) => {
+                                  const customer = typeof invoice.customer === 'string' 
+                                    ? JSON.parse(invoice.customer) 
+                                    : invoice.customer;
+                                  
+                                  return (
+                                    <tr key={invoice.id} className={`border-b ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                                      <td className="p-2">{invoice.invoiceNumber}</td>
+                                      <td className="p-2">
+                                        <span className={`inline-block px-2 py-1 rounded text-xs ${
+                                          invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
+                                          invoice.status === 'open' ? 'bg-yellow-100 text-yellow-800' :
+                                          invoice.status === 'overdue' ? 'bg-red-100 text-red-800' :
+                                          'bg-gray-100 text-gray-800'
+                                        }`}>
+                                          {invoice.status}
+                                        </span>
+                                      </td>
+                                      <td className="p-2">{invoice.dueDate ? formatDate(invoice.dueDate) : 'No due date'}</td>
+                                      <td className="p-2">{customer?.name || 'Unknown Customer'}</td>
+                                      <td className="p-2">${invoice.total?.toFixed(2) || '0.00'}</td>
+                                      <td className="p-2">{invoice.issueDate ? formatDate(invoice.issueDate) : 'No issue date'}</td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                          
+                          <div className="mt-6 text-right">
+                            <p className="text-sm text-gray-600">
+                              Total Invoices: {(() => {
+                                if (printOption === 'currentView') return displayInvoices.length;
+                                if (printOption === 'allInvoices') return invoices.length;
+                                return invoices.filter(invoice => {
+                                  const customer = typeof invoice.customer === 'string' 
+                                    ? JSON.parse(invoice.customer) 
+                                    : invoice.customer;
+                                  
+                                  const matchesStatus = customPrintFilters.status.length === 0 || 
+                                    customPrintFilters.status.includes(invoice.status);
+                                  
+                                  const matchesCustomer = !customPrintFilters.customer || 
+                                    customer?.name?.toLowerCase().includes(customPrintFilters.customer.toLowerCase());
+                                  
+                                  const matchesAmountRange = (!customPrintFilters.amountRange.min || 
+                                    (invoice.total || 0) >= parseFloat(customPrintFilters.amountRange.min)) &&
+                                    (!customPrintFilters.amountRange.max || 
+                                    (invoice.total || 0) <= parseFloat(customPrintFilters.amountRange.max));
+                                  
+                                  return matchesStatus && matchesCustomer && matchesAmountRange;
+                                }).length;
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                
               </div>
             </div>
 

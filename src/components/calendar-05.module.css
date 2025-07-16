@@ -1,0 +1,52 @@
+/* Override default react-day-picker styles - only remove outlines, preserve backgrounds */
+.calendar :global(.rdp-button) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-button:focus) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-button:active) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-day) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-day:focus) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-day:active) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Only remove outlines from selected dates, not their background colors */
+.calendar :global(.rdp-day_selected) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-day_selected:focus) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure deselected dates have clean styling but don't override selected ones */
+.calendar :global(.rdp-day:not(.rdp-day_selected):not(.rdp-day_range_start):not(.rdp-day_range_end):not(.rdp-day_range_middle):focus) {
+  background-color: white !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calendar :global(.rdp-day:not(.rdp-day_selected):not(.rdp-day_range_start):not(.rdp-day_range_end):not(.rdp-day_range_middle):hover) {
+  background-color: #f3f4f6 !important;
+}

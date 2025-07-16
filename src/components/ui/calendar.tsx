@@ -1,160 +1,213 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, isWithinInterval, isBefore, isAfter } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import * as React from "react"
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "lucide-react"
+import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker"
 
-interface CalendarProps {
-  selected?: Date | { start: Date; end: Date } | null;
-  onSelect?: (date: Date | { start: Date; end: Date }) => void;
-  className?: string;
-  mode?: "single" | "range";
-}
+import { cn } from "@/lib/utils"
+import { Button, buttonVariants } from "@/components/ui/button"
 
-export function Calendar({ selected, onSelect, className, mode = "single" }: CalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [rangeStart, setRangeStart] = useState<Date | null>(null);
-  const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
-
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const startDate = startOfWeek(monthStart);
-  const endDate = endOfWeek(monthEnd);
-
-  const days = eachDayOfInterval({ start: startDate, end: endDate });
-
-  const nextMonth = () => {
-    setCurrentDate(addMonths(currentDate, 1));
-  };
-
-  const prevMonth = () => {
-    setCurrentDate(subMonths(currentDate, 1));
-  };
-
-  const handleDateClick = (date: Date) => {
-    if (mode === "range") {
-      if (!rangeStart) {
-        // First click - set start date
-        setRangeStart(date);
-      } else {
-        // Second click - complete the range
-        const start = isBefore(date, rangeStart) ? date : rangeStart;
-        const end = isBefore(date, rangeStart) ? rangeStart : date;
-        
-        if (onSelect) {
-          onSelect({ start, end });
-        }
-        setRangeStart(null);
-      }
-    } else {
-      if (onSelect) {
-        onSelect(date);
-      }
-    }
-  };
-
-  const isDateInRange = (date: Date) => {
-    if (mode !== "range") return false;
-    
-    if (selected && typeof selected === "object" && "start" in selected) {
-      return isWithinInterval(date, { start: selected.start, end: selected.end });
-    }
-    
-    if (rangeStart && hoveredDate) {
-      const start = isBefore(hoveredDate, rangeStart) ? hoveredDate : rangeStart;
-      const end = isBefore(hoveredDate, rangeStart) ? rangeStart : hoveredDate;
-      return isWithinInterval(date, { start, end });
-    }
-    
-    return false;
-  };
-
-  const isRangeStart = (date: Date) => {
-    if (mode !== "range") return false;
-    
-    if (selected && typeof selected === "object" && "start" in selected) {
-      return isSameDay(date, selected.start);
-    }
-    
-    return rangeStart && isSameDay(date, rangeStart);
-  };
-
-  const isRangeEnd = (date: Date) => {
-    if (mode !== "range") return false;
-    
-    if (selected && typeof selected === "object" && "end" in selected) {
-      return isSameDay(date, selected.end);
-    }
-    
-    return false;
-  };
+function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  captionLayout = "label",
+  buttonVariant = "ghost",
+  formatters,
+  components,
+  ...props
+}: React.ComponentProps<typeof DayPicker> & {
+  buttonVariant?: React.ComponentProps<typeof Button>["variant"]
+}) {
+  const defaultClassNames = getDefaultClassNames()
 
   return (
-    <Card className={cn("w-full max-w-sm", className)}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={prevMonth}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <CardTitle className="text-sm font-medium">
-            {format(currentDate, "MMMM yyyy")}
-          </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={nextMonth}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-7 gap-1 text-center text-sm">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-            <div key={day} className="p-2 text-gray-500 font-medium">
-              {day}
-            </div>
-          ))}
-          {days.map((day) => {
-            const isCurrentMonth = isSameMonth(day, currentDate);
-            const isSelected = mode === "single" ? (selected && isSameDay(day, selected as Date)) : false;
-            const isTodayDate = isToday(day);
-            const inRange = isDateInRange(day);
-            const isStart = isRangeStart(day);
-            const isEnd = isRangeEnd(day);
-
+    <DayPicker
+      showOutsideDays={showOutsideDays}
+      className={cn(
+        "bg-background group/calendar p-3 [--cell-size:2rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
+        String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
+        className
+      )}
+      captionLayout={captionLayout}
+      formatters={{
+        formatMonthDropdown: (date) =>
+          date.toLocaleString("default", { month: "short" }),
+        ...formatters,
+      }}
+      classNames={{
+        root: cn("w-fit", defaultClassNames.root),
+        months: cn(
+          "relative flex flex-col gap-4 md:flex-row",
+          defaultClassNames.months
+        ),
+        month: cn("flex w-full flex-col gap-4", defaultClassNames.month),
+        nav: cn(
+          "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
+          defaultClassNames.nav
+        ),
+        button_previous: cn(
+          buttonVariants({ variant: buttonVariant }),
+          "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
+          defaultClassNames.button_previous
+        ),
+        button_next: cn(
+          buttonVariants({ variant: buttonVariant }),
+          "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
+          defaultClassNames.button_next
+        ),
+        month_caption: cn(
+          "flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]",
+          defaultClassNames.month_caption
+        ),
+        dropdowns: cn(
+          "flex h-[--cell-size] w-full items-center justify-center gap-1.5 text-sm font-medium",
+          defaultClassNames.dropdowns
+        ),
+        dropdown_root: cn(
+          "has-focus:border-ring border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border",
+          defaultClassNames.dropdown_root
+        ),
+        dropdown: cn(
+          "bg-popover absolute inset-0 opacity-0",
+          defaultClassNames.dropdown
+        ),
+        caption_label: cn(
+          "select-none font-medium",
+          captionLayout === "label"
+            ? "text-sm"
+            : "[&>svg]:text-muted-foreground flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:size-3.5",
+          defaultClassNames.caption_label
+        ),
+        table: "w-full border-collapse",
+        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekday: cn(
+          "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal",
+          defaultClassNames.weekday
+        ),
+        week: cn("mt-2 flex w-full", defaultClassNames.week),
+        week_number_header: cn(
+          "w-[--cell-size] select-none",
+          defaultClassNames.week_number_header
+        ),
+        week_number: cn(
+          "text-muted-foreground select-none text-[0.8rem]",
+          defaultClassNames.week_number
+        ),
+        day: cn(
+          "group/day relative aspect-square h-full w-full select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+          defaultClassNames.day
+        ),
+        range_start: cn(
+          "bg-accent rounded-l-md",
+          defaultClassNames.range_start
+        ),
+        range_middle: cn("rounded-none", defaultClassNames.range_middle),
+        range_end: cn("bg-accent rounded-r-md", defaultClassNames.range_end),
+        today: cn(
+          "bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none",
+          defaultClassNames.today
+        ),
+        outside: cn(
+          "text-muted-foreground aria-selected:text-muted-foreground",
+          defaultClassNames.outside
+        ),
+        disabled: cn(
+          "text-muted-foreground opacity-50",
+          defaultClassNames.disabled
+        ),
+        hidden: cn("invisible", defaultClassNames.hidden),
+        ...classNames,
+      }}
+      components={{
+        Root: ({ className, rootRef, ...props }) => {
+          return (
+            <div
+              data-slot="calendar"
+              ref={rootRef}
+              className={cn(className)}
+              {...props}
+            />
+          )
+        },
+        Chevron: ({ className, orientation, ...props }) => {
+          if (orientation === "left") {
             return (
-              <Button
-                key={day.toISOString()}
-                variant={isSelected || isStart || isEnd ? "default" : "ghost"}
-                size="sm"
-                className={cn(
-                  "h-8 w-8 p-0 text-sm",
-                  !isCurrentMonth && "text-gray-400 opacity-50",
-                  isTodayDate && !isSelected && !isStart && !isEnd && "bg-blue-100 text-blue-600",
-                  (isSelected || isStart || isEnd) && "bg-blue-600 text-white hover:bg-blue-700",
-                  inRange && !isStart && !isEnd && "bg-blue-200 text-blue-800 hover:bg-blue-300",
-                  rangeStart && isSameDay(day, rangeStart) && "bg-blue-500 text-white"
-                )}
-                onClick={() => handleDateClick(day)}
-                onMouseEnter={() => setHoveredDate(day)}
-                onMouseLeave={() => setHoveredDate(null)}
-              >
-                {format(day, "d")}
-              </Button>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
+            )
+          }
+
+          if (orientation === "right") {
+            return (
+              <ChevronRightIcon
+                className={cn("size-4", className)}
+                {...props}
+              />
+            )
+          }
+
+          return (
+            <ChevronDownIcon className={cn("size-4", className)} {...props} />
+          )
+        },
+        DayButton: CalendarDayButton,
+        WeekNumber: ({ children, ...props }) => {
+          return (
+            <td {...props}>
+              <div className="flex size-[--cell-size] items-center justify-center text-center">
+                {children}
+              </div>
+            </td>
+          )
+        },
+        ...components,
+      }}
+      {...props}
+    />
+  )
 }
+
+function CalendarDayButton({
+  className,
+  day,
+  modifiers,
+  ...props
+}: React.ComponentProps<typeof DayButton>) {
+  const defaultClassNames = getDefaultClassNames()
+
+  const ref = React.useRef<HTMLButtonElement>(null)
+  React.useEffect(() => {
+    if (modifiers.focused) ref.current?.focus()
+  }, [modifiers.focused])
+
+  return (
+    <Button
+      ref={ref}
+      variant="ghost"
+      size="icon"
+      data-day={day.date.toLocaleDateString()}
+      data-selected-single={
+        modifiers.selected &&
+        !modifiers.range_start &&
+        !modifiers.range_end &&
+        !modifiers.range_middle
+      }
+      data-range-start={modifiers.range_start}
+      data-range-end={modifiers.range_end}
+      data-range-middle={modifiers.range_middle}
+      className={cn(
+        "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 flex aspect-square h-auto w-full min-w-[--cell-size] flex-col gap-1 font-normal leading-none data-[range-end=true]:rounded-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] [&>span]:text-xs [&>span]:opacity-70",
+        defaultClassNames.day,
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Calendar, CalendarDayButton }

@@ -2,6 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Print styles */
+@media print {
+  .print-preview {
+    box-shadow: none !important;
+    border: none !important;
+  }
+  
+  .print-content {
+    page-break-inside: avoid;
+  }
+  
+  .print-content table {
+    page-break-inside: auto;
+  }
+  
+  .print-content tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  .print-content thead {
+    display: table-header-group;
+  }
+  
+  .print-content tfoot {
+    display: table-footer-group;
+  }
+  
+  /* Hide everything except the print content when printing */
+  body * {
+    visibility: hidden;
+  }
+  
+  .print-content,
+  .print-content * {
+    visibility: visible;
+  }
+  
+  .print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
