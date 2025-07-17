@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { invoices } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { getDatabase } from '@/db/json-adapter';
 import { Document, Page, Text, View, Image, StyleSheet, pdf } from '@react-pdf/renderer';
 import React from 'react';
 
@@ -277,14 +275,13 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const instance = await db.getInstance();
-    const result = await instance.select().from(invoices).where(eq(invoices.id, id));
+    const db = await getDatabase();
+    const invoice = db.get('SELECT * FROM invoices WHERE id = ?', [id]);
 
-    if (result.length === 0) {
+    if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
     
-    const invoice = result[0];
     const pdfDoc = pdf(InvoicePDF({ invoice }));
     const pdfBlob = await pdfDoc.toBlob();
     const pdfBuffer = Buffer.from(await pdfBlob.arrayBuffer());

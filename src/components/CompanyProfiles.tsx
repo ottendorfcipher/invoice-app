@@ -49,9 +49,9 @@ export default function CompanyProfiles() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Company Name</TableHead>
+              <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead>Phone</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -65,7 +65,7 @@ export default function CompanyProfiles() {
                   {profile.email || 'No email'}
                 </TableCell>
                 <TableCell>
-                  {profile.address || 'No address'}
+                  {profile.phone || 'No phone'}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">

@@ -51,7 +51,7 @@ export default function Customers() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead>Phone</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -65,7 +65,7 @@ export default function Customers() {
                   {customer.email || 'No email'}
                 </TableCell>
                 <TableCell>
-                  {customer.address || 'No address'}
+                  {customer.phone || 'No phone'}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">

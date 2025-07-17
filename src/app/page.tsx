@@ -34,14 +34,36 @@ export default function Dashboard() {
           size: letter;
         }
         
-        body {
+        * {
+          box-sizing: border-box;
+        }
+        
+        html, body {
+          height: auto !important;
+          min-height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          display: block !important;
+          justify-content: flex-start !important;
+          align-items: flex-start !important;
+        }
+        
+        body {
+          font-size: 12pt;
+          line-height: 1.2;
+        }
+        
+        /* Hide everything except print content */
+        body * {
+          visibility: hidden;
         }
         
         .print-content {
+          visibility: visible !important;
           display: block !important;
-          position: relative !important;
+          position: static !important;
           top: 0 !important;
           left: 0 !important;
           width: 100% !important;
@@ -58,34 +80,36 @@ export default function Dashboard() {
           visibility: visible !important;
         }
         
-        body * {
-          visibility: hidden;
-        }
-        
-        .print-content, .print-content * {
-          visibility: visible;
-        }
-        
-        .print-content {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
+        /* Reset any flex or grid layouts that might center content */
+        .min-h-screen {
+          min-height: auto !important;
+          height: auto !important;
+          display: block !important;
+          justify-content: flex-start !important;
+          align-items: flex-start !important;
         }
         
         /* Hide everything except print content */
-        .min-h-screen > div:not(.print-content) {
+        .min-h-screen > *:not(.print-content) {
           display: none !important;
         }
         
         /* Ensure proper table printing */
         table {
           page-break-inside: auto;
+          width: 100%;
+          border-collapse: collapse;
         }
         
         tr {
           page-break-inside: avoid;
           page-break-after: auto;
+        }
+        
+        th, td {
+          padding: 8px;
+          text-align: left;
+          border-bottom: 1px solid #ddd;
         }
         
         thead {
@@ -94,6 +118,21 @@ export default function Dashboard() {
         
         tbody {
           display: table-row-group;
+        }
+        
+        /* Ensure headings and text are properly sized */
+        h1 {
+          font-size: 18pt;
+          margin: 0 0 12pt 0;
+        }
+        
+        h2 {
+          font-size: 14pt;
+          margin: 0 0 8pt 0;
+        }
+        
+        p {
+          margin: 0 0 6pt 0;
         }
       }
     `;
@@ -529,7 +568,7 @@ export default function Dashboard() {
     } else if (dateRange?.from) {
       return format(dateRange.from, 'MMM d');
     } else {
-      return 'Select Range';
+      return 'Date Range';
     }
   };
   
@@ -837,14 +876,6 @@ export default function Dashboard() {
                   </DialogContent>
                 </Dialog>
                 
-                {/* Print Button */}
-                <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setShowPrintModal(true)}>
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  Print
-                </Button>
-                
                 {/* Settings Button */}
                 <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
                   <DialogTrigger asChild>
@@ -921,6 +952,14 @@ export default function Dashboard() {
                     </div>
                   </DialogContent>
                 </Dialog>
+                
+                {/* Print Button */}
+                <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setShowPrintModal(true)}>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </Button>
                 
                 {/* Print Modal */}
                 <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
