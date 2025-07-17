@@ -1,6 +1,6 @@
 {
   "name": "simple-invoice",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A modern invoice application built with Next.js and Electron",
   "author": {
     "name": "Nicholas Weiner",
@@ -98,7 +98,20 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "extraFiles": [
+      {
+        "from": "invoice-data.json",
+        "to": "invoice-data.json"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/@img/**/*",
+      "node_modules/sharp/**/*"
+    ],
     "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "compression": "normal",
+    "publish": null,
     "mac": {
       "category": "public.app-category.business",
       "target": [
