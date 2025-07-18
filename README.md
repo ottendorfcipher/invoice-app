@@ -190,9 +190,3 @@ Simple Invoice is designed with a local-first philosophy:
 - Responsive design
 - Easy deployment
 - Cross-platform compatibility
-
-## Package management note
-
-This project uses a single `package-lock.json` file for dependency management. Previously, there was a duplicate `package-lock 2.json` file from an earlier version of the project (when it was called "invoice-app"). This duplicate has been removed to avoid confusion and ensure consistent dependency resolution.
-
-The main `package-lock.json` file corresponds to the current project version and should be the only lockfile used for installations.
