@@ -112,28 +112,6 @@ npm run db:migrate
 npm run db:studio
 ```
 
-## Project structure
-
-```
-simple-invoice/
-├── src/
-│   ├── app/                    # Next.js app router
-│   │   ├── api/               # API routes
-│   │   ├── customers/         # Customer management pages
-│   │   ├── company-profiles/  # Company profile pages
-│   │   └── invoices/          # Invoice management pages
-│   ├── components/            # React components
-│   │   └── ui/               # Shadcn/ui components
-│   └── db/                   # Database configuration
-│       ├── schema.ts         # Database schema
-│       ├── sql-js-adapter.ts # SQLite adapter
-│       └── json-adapter.ts   # JSON file adapter
-├── electron/                 # Electron main process
-├── drizzle/                  # Database migrations
-├── public/                   # Static assets
-└── dist/                     # Built applications
-```
-
 ## Tech stack
 
 ### Core Framework
@@ -161,8 +139,6 @@ simple-invoice/
 
 ### PDF & Rich Text
 - **React PDF** - PDF generation for invoices
-- **Tiptap** - Rich text editor for notes
-- **QR Code** - QR code generation for invoices
 
 ### Development Tools
 - **Drizzle Kit** - Database migrations and management
