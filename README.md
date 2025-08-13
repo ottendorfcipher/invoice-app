@@ -192,3 +192,9 @@ Simple Invoice is designed with a local-first philosophy:
 - Responsive design
 - Easy deployment
 - Cross-platform compatibility
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+The MIT License allows you to use this software for any purpose, including commercial use, modification, and distribution, with no warranty or liability from the authors.

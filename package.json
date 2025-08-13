@@ -2,6 +2,7 @@
   "name": "simple-invoice",
   "version": "1.0.5",
   "description": "A modern invoice application built with Next.js and Electron",
+  "license": "MIT",
   "author": {
     "name": "Nicholas Weiner",
     "email": "nicholasaweiner@gmail.com"
