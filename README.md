@@ -1,5 +1,7 @@
 # Simple Invoice
 
+![Simple Invoice Logo](https://raw.githubusercontent.com/ottendorfcipher/simple-invoice/main/public/simple-invoice-logo.png)
+
 A clean, straightforward invoice management application built with Next.js and Electron. No complicated setup, no monthly fees, just a simple way to create and manage invoices locally on your machine.
 
 ## What it does
